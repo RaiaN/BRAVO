@@ -2,14 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Rail from '../components/Rail';
 import Thread from '../components/Thread';
 import {
+  addThread,
   appendMessage,
   clearProject,
   loadProject,
   makeProject,
   renameThreadSubject,
   saveProject,
+  setThreadDraft,
   threadById,
 } from '../state/project';
+import { browserClient } from '../agents/client';
+import { runTurn } from '../agents/loop';
 
 // THE SHELL (§2) — rail on the left, the open thread on the right, composer pinned
 // below it. Milestone 1: one project, one thread, no agent, and messages that persist.
@@ -84,9 +88,40 @@ export default function Shell() {
 
   // ---- actions ------------------------------------------------------------------
 
-  const send = useCallback((text) => {
-    setProject((p) => (p ? appendMessage(p, openThreadId, { role: 'user', text }) : p));
+  // Send, then run the agent's turn. §2: selection is implicit — this thread is the
+  // subject of everything typed here, so nothing is passed but the text.
+  const send = useCallback(async (text) => {
+    const threadId = openThreadId;
+    if (!threadId) return;
+
+    const withUser = appendMessage(setThreadDraft(latest.current, threadId, ''), threadId, { role: 'user', text });
+    latest.current = withUser;
+    setProject(withUser);
+
+    // onProgress lands every state change as it happens, so the transcript and the rail
+    // move during the turn rather than all at the end.
+    const next = await runTurn({
+      client: browserClient(),
+      project: withUser,
+      threadId,
+      onProgress: (p) => { latest.current = p; setProject(p); },
+    });
+    latest.current = next;
+    setProject(next);
   }, [openThreadId]);
+
+  const draft = useCallback((text) => {
+    setProject((p) => (p ? setThreadDraft(p, openThreadId, text) : p));
+  }, [openThreadId]);
+
+  const newThread = useCallback(() => {
+    setProject((p) => {
+      if (!p) return p;
+      const { project: next, thread } = addThread(p);
+      setOpenThreadId(thread.id);
+      return next;
+    });
+  }, []);
 
   const rename = useCallback((title) => {
     setProject((p) => (p ? renameThreadSubject(p, openThreadId, title) : p));
@@ -127,13 +162,14 @@ export default function Shell() {
         project={project}
         openThreadId={openThreadId}
         onOpenThread={setOpenThreadId}
+        onNewThread={newThread}
         more={more}
         onToggleMore={() => setMore((v) => !v)}
         onReset={reset}
         theme={theme}
         onTheme={setTheme}
       />
-      <Thread project={project} thread={open} onSend={send} onRename={rename} />
+      <Thread project={project} thread={open} onSend={send} onRename={rename} onDraft={draft} />
 
       <style jsx>{`
         .app { display: flex; height: 100%; min-height: 0; }

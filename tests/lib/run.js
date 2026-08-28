@@ -1,0 +1,141 @@
+// THE AGENT RUNNER — layer 2 of docs/TESTING.md.
+//
+// Each case goes through the REAL loop against the real reasoner. Assertions are
+// structural, never wording: a differently-phrased report is not a regression, a call to
+// a tool the agent does not hold is. Prompt quality goes into the report for a person to
+// judge — no machine check will tell you a prompt is good.
+//
+//   node tests/lib/run.js              gated tools stubbed, nothing spent
+//   node tests/lib/run.js --spend      actually renders
+//   node tests/lib/run.js router       one agent only
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { insertShot, latchThread, makeProject, threadById, appendMessage } from '../../state/project.js';
+import { parseReply } from '../../agents/protocol.js';
+import { route } from '../../agents/router.js';
+import { runTurn } from '../../agents/loop.js';
+import { THREAD_KINDS } from '../../state/project.js';
+import { gates, assertNoSpend } from './gates.js';
+import { serverUp, testClient } from './client.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, '../..');
+const args = process.argv.slice(2);
+const SPEND = args.includes('--spend');
+const only = args.find((a) => !a.startsWith('--'));
+
+const GATED = ['still', 'shoot', 'edit', 'extend', 'speak'];
+const spent = [];
+
+const seedProject = (film = []) => {
+  let p = makeProject();
+  film.forEach((f) => { p = insertShot(p, { fields: f }).project; });
+  const first = p.threads[0];
+  const latched = latchThread(p, first.id, 'shot', { subjectId: p.film.shots[0]?.id, title: '' });
+  return { project: latched.project, threadId: first.id };
+};
+
+const runRouterCase = async (client, c) => {
+  const decision = await route({ client, message: c.input });
+  const fails = [];
+  const g = gates.routedOrAsked(decision, THREAD_KINDS);
+  if (g) fails.push(g);
+  if (c.expect.ask && !decision.ask) fails.push(`should have ASKED, but latched to "${decision.kind}" — §8 forbids a default kind`);
+  if (c.expect.kind && decision.kind !== c.expect.kind) fails.push(`expected kind "${c.expect.kind}", got "${decision.kind ?? 'ask'}"`);
+  return { fails, detail: decision };
+};
+
+const runShotCase = async (client, c) => {
+  const { project, threadId } = seedProject(c.film || [{ title: '' }]);
+  let p = appendMessage(project, threadId, { role: 'user', text: c.input });
+  p = await runTurn({ client, project: p, threadId });
+
+  const thread = threadById(p, threadId);
+  const toolMsgs = thread.messages.filter((m) => m.role === 'tool');
+  const used = toolMsgs.map((m) => m.tool.name);
+  const prose = thread.messages.filter((m) => m.role === 'agent').map((m) => m.text).join('\n');
+  const errored = toolMsgs.filter((m) => m.tool.output?.kind === 'error');
+
+  const fails = [];
+  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, ['read', 'write', 'order', 'choose']);
+  if (bad) fails.push(bad);
+  (c.expect.tools || []).forEach((t) => { if (!used.includes(t)) fails.push(`expected a "${t}" call, got: ${used.join(', ') || 'none'}`); });
+  (c.expect.noTools || []).forEach((t) => { if (used.includes(t)) fails.push(`must NOT have called "${t}"`); });
+  if (c.expect.mustSay && !c.expect.mustSay.test(prose)) fails.push(`report never said why it could not: ${JSON.stringify(prose.slice(0, 160))}`);
+  if (c.expect.saysInOrder) {
+    const at = c.expect.saysInOrder.map((t) => prose.toLowerCase().indexOf(t.toLowerCase()));
+    if (at.some((i) => i < 0)) fails.push(`never named ${c.expect.saysInOrder.filter((t, i) => at[i] < 0).join(', ')}`);
+    else if (at.some((v, i) => i && v < at[i - 1])) fails.push(`named them out of order: ${JSON.stringify(prose.slice(0, 200))}`);
+  }
+  if (c.expect.resolvesToNothing) {
+    const touched = toolMsgs.some((m) => m.tool.output?.kind === 'shot');
+    if (touched) fails.push('§8 violated: an unknown id resolved to a real shot instead of nothing');
+    if (!errored.length && !/no shot|does not exist|only \d+/i.test(prose)) fails.push('never reported that the shot does not exist');
+  }
+  return { fails, detail: { used, prose: prose.slice(0, 400), errors: errored.map((m) => m.tool.output.error) } };
+};
+
+const main = async () => {
+  const client = testClient({
+    onCall: ({ tool }) => { if (GATED.includes(tool)) spent.push(tool); },
+  });
+
+  if (!(await serverUp(client.base))) {
+    console.error(`\nNo BRAVO server at ${client.base}.\n  Start one:  PORT=3210 npm run dev\n  Or point at another:  BRAVO_TEST_URL=http://localhost:3000 npm run test:agents\n`);
+    process.exit(2);
+  }
+
+  const suites = [
+    { dir: 'router', run: runRouterCase },
+    { dir: 'shot', run: runShotCase },
+  ].filter((s) => !only || s.dir === only);
+
+  let pass = 0;
+  let fail = 0;
+  const lines = [`# Agent run — ${new Date().toISOString()}`, '', `server: ${client.base} · spending: ${SPEND ? 'YES' : 'stubbed'}`, ''];
+
+  for (const suite of suites) {
+    const mod = await import(path.join(ROOT, 'tests/agents', suite.dir, 'cases.js'));
+    if (mod.cases.length < 5) {
+      console.error(`✗ ${suite.dir}: only ${mod.cases.length} cases — the rule is at least five`);
+      fail += 1;
+      continue;
+    }
+    console.log(`\n${suite.dir} · ${mod.cases.length} cases`);
+    lines.push(`## ${suite.dir}`, '');
+
+    for (const c of mod.cases) {
+      let result;
+      try {
+        result = await suite.run(client, c);
+      } catch (err) {
+        result = { fails: [`threw: ${err.message}`], detail: {} };
+      }
+      const ok = result.fails.length === 0;
+      ok ? (pass += 1) : (fail += 1);
+      console.log(`  ${ok ? '✓' : '✗'} ${c.name}`);
+      result.fails.forEach((f) => console.log(`      ${f}`));
+      lines.push(
+        `### ${ok ? '✓' : '✗'} ${c.name}`, '',
+        `**input:** ${c.input}`, '', `**why this case exists:** ${c.why}`, '',
+        '```json', JSON.stringify(result.detail, null, 1), '```', '',
+        ...(ok ? [] : ['**failed:**', ...result.fails.map((f) => `- ${f}`), '']),
+      );
+    }
+  }
+
+  const leak = SPEND ? null : assertNoSpend(spent);
+  if (leak) { console.error(`\n✗ ${leak}`); fail += 1; }
+
+  fs.mkdirSync(path.join(ROOT, 'tests/reports'), { recursive: true });
+  const report = path.join(ROOT, 'tests/reports', `agents-${Date.now()}.md`);
+  fs.writeFileSync(report, lines.join('\n'));
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  console.log(`report: ${path.relative(ROOT, report)}`);
+  process.exit(fail ? 1 : 0);
+};
+
+main();

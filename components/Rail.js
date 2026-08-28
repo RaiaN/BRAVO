@@ -1,4 +1,4 @@
-import { filmRows, STATES, stateOf, threadForSubject } from '../state/project';
+import { filmRows, STATES, stateOf, threadForSubject, unlatchedThreads } from '../state/project';
 
 // THE RAIL (§2) — project name, global links, then two sections: THE FILM (shots in
 // order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
@@ -98,8 +98,9 @@ const Section = ({ children }) => (
   </div>
 );
 
-export default function Rail({ project, openThreadId, onOpenThread, more, onToggleMore, onReset, theme, onTheme }) {
+export default function Rail({ project, openThreadId, onOpenThread, onNewThread, more, onToggleMore, onReset, theme, onTheme }) {
   const rows = filmRows(project);
+  const blank = unlatchedThreads(project);
 
   return (
     <nav className="rail" aria-label="Films and bible">
@@ -136,7 +137,26 @@ export default function Rail({ project, openThreadId, onOpenThread, more, onTogg
       </div>
 
       <div className="scroll body">
+        {blank.length > 0 && (
+          <>
+            <Section>Unrouted</Section>
+            {blank.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`brow${t.id === openThreadId ? ' open' : ''}`}
+                onClick={() => onOpenThread(t.id)}
+              >
+                <span className="mark" aria-hidden="true">＋</span>
+                <span className="title">{t.messages.length ? t.messages[0].text.slice(0, 40) : 'new thread'}</span>
+                <StateGlyph state={t.status === 'working' ? 'working' : 'empty'} />
+              </button>
+            ))}
+          </>
+        )}
+
         <Section>{project.title || 'Untitled film'}</Section>
+        {rows.length === 0 && <p className="empty">No shots yet. Say what you want in a thread.</p>}
         {rows.map((row) => {
           const thread = threadForSubject(project, row.shot.id);
           return (
@@ -173,8 +193,11 @@ export default function Rail({ project, openThreadId, onOpenThread, more, onTogg
       </div>
 
       <div className="foot">
-        <Pending icon="+" label="New thread" at="M6" />
-        <p className="stage">Milestone 1 · the shell</p>
+        <button type="button" className="new" onClick={onNewThread}>
+          <span className="icon" aria-hidden="true">+</span>
+          <span>New thread</span>
+        </button>
+        <p className="stage">Phase A · the loop</p>
       </div>
 
       <style jsx>{`
@@ -230,6 +253,13 @@ export default function Rail({ project, openThreadId, onOpenThread, more, onTogg
         .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .foot { padding: 8px 6px 10px; border-top: 1px solid var(--line-soft); }
+        .new {
+          display: flex; align-items: center; gap: 9px; width: 100%;
+          padding: 6px 10px; border-radius: 7px;
+          color: var(--muted); font-size: 13.5px; text-align: left;
+        }
+        .new:hover { background: var(--hover); color: var(--ink); }
+        .new .icon { width: 16px; text-align: center; }
         .stage {
           margin: 6px 0 0; padding: 0 11px;
           font-size: 10.5px; letter-spacing: 0.05em; color: var(--faint);

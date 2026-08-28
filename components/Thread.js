@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import UserMessage from './messages/UserMessage';
 import AgentMessage from './messages/AgentMessage';
+import ToolResult from './messages/ToolResult';
 import { STATES, stateOf, subjectOf } from '../state/project';
 
 // THE THREAD PANE (§2) — the transcript, newest at the bottom, composer pinned below.
@@ -11,8 +12,7 @@ import { STATES, stateOf, subjectOf } from '../state/project';
 
 const MAX_COMPOSER_PX = 232;   // ~8 lines, then the composer scrolls instead of growing
 
-function Composer({ onSend, subjectLabel }) {
-  const [text, setText] = useState('');
+function Composer({ onSend, subjectLabel, busy, text, setText }) {
   const ref = useRef(null);
 
   // Grow to fit, then stop and scroll. Measured from a reset height so deleting a line
@@ -39,7 +39,7 @@ function Composer({ onSend, subjectLabel }) {
 
   const send = () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body || busy) return;
     onSend(body);
     setText('');
   };
@@ -60,7 +60,8 @@ function Composer({ onSend, subjectLabel }) {
           ref={ref}
           rows={1}
           value={text}
-          placeholder={`message the agent about ${subjectLabel}…`}
+          disabled={busy}
+          placeholder={busy ? 'the agent is working…' : `message the agent about ${subjectLabel}…`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           aria-label="Message the agent"
@@ -69,7 +70,7 @@ function Composer({ onSend, subjectLabel }) {
           type="button"
           className="send"
           onClick={send}
-          disabled={!text.trim()}
+          disabled={!text.trim() || busy}
           title="Send (Return) · Shift+Return for a newline"
           aria-label="Send"
         >
@@ -176,7 +177,7 @@ function Title({ label, title, onRename }) {
   );
 }
 
-export default function Thread({ project, thread, onSend, onRename }) {
+export default function Thread({ project, thread, onSend, onRename, onDraft }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
   const subject = subjectOf(project, thread);
@@ -232,17 +233,22 @@ export default function Thread({ project, thread, onSend, onRename }) {
   // §8 forbids substituting a default: the label comes from this thread's own subject,
   // and a subject the film does not hold yields no number rather than someone else's.
   const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
-  const label = thread.kind === 'bible'
-    ? '◆'
-    : (position >= 0 ? String(position + 1).padStart(2, '0') : '—');
+  const label = !thread.kind
+    ? '＋'
+    : (thread.kind === 'bible' ? '◆' : (position >= 0 ? String(position + 1).padStart(2, '0') : '—'));
 
   const state = stateOf(project, thread);
+  const busy = thread.status === 'working';
 
   return (
     <main className="pane">
       <header className="head drag">
-        <Title label={label} title={subject?.title || ''} onRename={onRename} />
-        <span className={`state ${state}`}>{STATES[state].glyph} {STATES[state].label}</span>
+        {thread.kind
+          ? <Title label={label} title={subject?.title || ''} onRename={onRename} />
+          : <h1 className="title unset"><span className="n">＋</span> new thread</h1>}
+        <span className={`state ${state}`}>
+          {STATES[state].glyph} {thread.kind ? STATES[state].label : 'unrouted'}
+        </span>
       </header>
 
       <div className="scroll transcript" ref={scroller}>
@@ -250,11 +256,14 @@ export default function Thread({ project, thread, onSend, onRename }) {
           {messages.length === 0 ? (
             <div className="opening">
               <p className="lede">
-                {subject?.title ? `Shot ${label} · ${subject.title}` : `Shot ${label} has no title yet.`}
+                {thread.kind
+                  ? (subject?.title ? `${label} · ${subject.title}` : `${label} has no title yet.`)
+                  : 'What is this one about?'}
               </p>
               <p className="sub">
-                This thread owns one shot and nothing else. Say what the moment is and the
-                agent composes, renders and reports here.
+                {thread.kind
+                  ? 'This thread owns one artifact and nothing else. Say what you want and the agent works here.'
+                  : 'A thread starts blank. Say what you want — a shot, an edit, a storyboard, a bible entry — and it becomes that agent\u2019s thread.'}
               </p>
             </div>
           ) : messages.map((m) => {
@@ -262,20 +271,25 @@ export default function Thread({ project, thread, onSend, onRename }) {
             // freezes animations mid-flight, and a frozen fade-in is an invisible
             // message — so when nobody is looking the turn simply appears.
             const enter = !restored.current.ids.has(m.id) && watching;
+            if (m.role === 'tool') return <ToolResult key={m.id} message={m} />;
             return m.role === 'user'
               ? <UserMessage key={m.id} message={m} enter={enter} />
               : <AgentMessage key={m.id} message={m} enter={enter} />;
           })}
 
-          {/* Shell chrome, not a turn: at M1 the thread has no agent, and silence after
-              a send would read as a fault rather than as the milestone it is. */}
-          <p className="noagent">
-            No agent on this thread yet — the turn loop lands at M3. Your messages are saved.
-          </p>
+          {busy && (
+            <p className="working"><span className="spin" aria-hidden="true">⟳</span> working…</p>
+          )}
         </div>
       </div>
 
-      <Composer onSend={onSend} subjectLabel={subject?.title ? `“${subject.title}”` : `shot ${label}`} />
+      <Composer
+        onSend={onSend}
+        busy={busy}
+        text={thread.draft || ''}
+        setText={onDraft}
+        subjectLabel={thread.kind ? (subject?.title ? `\u201c${subject.title}\u201d` : `shot ${label}`) : 'anything'}
+      />
 
       <style jsx>{`
         .pane {
@@ -308,11 +322,13 @@ export default function Thread({ project, thread, onSend, onRename }) {
         .opening { padding: 44px 0 8px; }
         .lede { margin: 0 0 6px; font-size: 22px; font-weight: 500; letter-spacing: -0.015em; }
         .sub  { margin: 0; max-width: 46ch; color: var(--muted); }
-        .noagent {
-          margin: 22px 0 0; padding-top: 14px;
-          border-top: 1px dashed var(--line-soft);
-          font-size: 12px; color: var(--faint);
+        .working {
+          display: flex; align-items: center; gap: 7px;
+          margin: 14px 0 0; font-size: 12.5px; color: var(--state-working);
         }
+        .spin { display: inline-block; animation: bravo-spin 1.6s linear infinite; }
+        .unset { color: var(--muted); font-weight: 500; }
+        .unset .n { color: var(--faint); }
       `}</style>
     </main>
   );

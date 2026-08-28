@@ -62,10 +62,12 @@ never key material.
 
 ## Milestones
 
-See [BRAVO.md](BRAVO.md) §11. Shipped so far:
+See [BRAVO.md](BRAVO.md) §11 for the spec's list, and [PLAN.md](PLAN.md) for what is
+actually built and what the next milestone costs.
 
-- **M1 · Shell** — rail + thread pane + composer in the Claude layout. One project, one
-  thread, no agent. Messages persist across reloads.
+Shipped: **M1 · Shell** — rail + thread pane + composer in the Claude layout; one project,
+one thread, no agent; messages persist across reloads. Plus the macOS package
+([DESKTOP.md](DESKTOP.md)).
 
 Rail controls drawn but inert until their milestone are labelled with it (`M2`, `M4`,
 `M6`) rather than hidden, so the shell teaches its own final shape.

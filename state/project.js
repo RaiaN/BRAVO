@@ -64,33 +64,37 @@ export const makeMessage = (fields = {}) => ({
   ...fields,
 });
 
+// A thread is born UNISEX: no kind, no subject, just a conversation. The first message
+// routes it, and the kind then LATCHES — which is what keeps §4's "a thread owns exactly
+// one artifact" true. Unisex only until first use, never after.
 export const makeThread = (fields = {}) => ({
   id: newId('thr'),
-  kind: 'shot',
-  subjectId: null,       // a thread owns exactly ONE artifact (§4)
+  kind: null,            // null = not yet routed
+  subjectId: null,       // a thread owns exactly ONE artifact (§4), once latched
   title: '',
   messages: [],
   status: 'idle',
+  draft: '',             // the half-typed message, per thread
   budget: { takesCap: 4, spentTakes: 0 },
   ...fields,
 });
 
-// A new project is one film with one shot, and one thread that owns it. The film cannot
-// start empty: §5 makes forking the only way to CREATE a shot, so the first one is born
-// with the project.
+export const THREAD_KINDS = ['shot', 'edit', 'storyboard', 'bible', 'audio'];
+
+// A new project is ONE BLANK THREAD and an empty film. Nothing is seeded: the first thing
+// you say decides what this conversation is about, and the artifact is created then. An
+// empty film is a legal state — it is what a film looks like before anyone has spoken.
 export const makeProject = (title = 'Untitled film') => {
   const now = new Date().toISOString();
-  const shot = makeShot();
-  const thread = makeThread({ kind: 'shot', subjectId: shot.id });
   return {
     schemaVersion: SCHEMA_VERSION,
     id: newId('prj'),
     title,
     createdAt: now,
     updatedAt: now,
-    film: { shots: [shot] },
+    film: { shots: [] },
     bible: [],
-    threads: [thread],
+    threads: [makeThread()],
     look: { style: '', grade: '', notes: '' },   // standing facts every agent reads
   };
 };
@@ -195,19 +199,28 @@ export const migrate = (raw) => {
   const threads = Array.isArray(project.threads) ? project.threads : [];
   project.threads = threads.map((t) => makeThread({
     ...t,
+    kind: THREAD_KINDS.includes(t.kind) ? t.kind : null,   // an unknown kind is unlatched, never guessed (§8)
     messages: Array.isArray(t.messages) ? t.messages.map((m) => makeMessage(m)) : [],
     budget: { takesCap: 4, spentTakes: 0, ...(t.budget || {}) },
   }));
-  // A film with no shots, or a shot with no thread, cannot be talked to. Repair rather
-  // than refuse: the user's messages are the valuable part of the file.
-  if (!project.film.shots.length) {
-    const shot = makeShot();
-    project.film.shots.push(shot);
-    project.threads.push(makeThread({ kind: 'shot', subjectId: shot.id }));
-  }
-  if (!project.threads.length) {
-    project.threads.push(makeThread({ kind: 'shot', subjectId: project.film.shots[0].id }));
-  }
+  // An EMPTY FILM is legal — it is what a film looks like before anyone has spoken. But a
+  // project with no thread cannot be talked to at all, so that one is repaired.
+  if (!project.threads.length) project.threads.push(makeThread());
+
+  // THE LOOP RUNS IN THE BROWSER, so a reload kills any turn that was in flight. A thread
+  // left saying `working` would spin forever against nothing running. Reconcile it here,
+  // and say so in the transcript — §8 wants a visible report, not a silent reset.
+  project.threads = project.threads.map((t) => (t.status === 'working'
+    ? {
+      ...t,
+      status: 'needs-you',
+      messages: [...t.messages, makeMessage({
+        role: 'agent',
+        text: 'That turn was interrupted — the page reloaded while I was working. Nothing was lost. Say it again and I will pick it up.',
+      })],
+    }
+    : t));
+
   return project;
 };
 
@@ -263,3 +276,106 @@ export const renameThreadSubject = (project, threadId, title) => {
 };
 
 export const renameProject = (project, title) => touch({ ...project, title });
+
+export const setLook = (project, look) => touch({ ...project, look: { ...project.look, ...look } });
+
+export const setThreadDraft = (project, threadId, draft) => (threadById(project, threadId)
+  ? { ...project, threads: project.threads.map((t) => (t.id === threadId ? { ...t, draft } : t)) }
+  : project);   // drafts do not bump updatedAt — typing is not a change to the film
+
+export const setThreadStatus = (project, threadId, status) => (threadById(project, threadId)
+  ? touch({ ...project, threads: project.threads.map((t) => (t.id === threadId ? { ...t, status } : t)) })
+  : project);
+
+// ---- shots -----------------------------------------------------------------------
+
+// Insert a shot into the film. `afterId` places it directly after that shot (fork-as-next
+// at M7); absent, it lands at the end. `parentId` records a fork (§5) and is what makes a
+// row render indented under its parent.
+export const insertShot = (project, { afterId = null, parentId = null, fields = {} } = {}) => {
+  const shot = makeShot({ ...fields, parentId });
+  const shots = [...project.film.shots];
+  const at = afterId ? shots.findIndex((s) => s.id === afterId) : -1;
+  if (at >= 0) shots.splice(at + 1, 0, shot); else shots.push(shot);
+  return { project: touch({ ...project, film: { shots } }), shot };
+};
+
+// §3 invariant 1: `prompt` is the final prompt — this sets fields, it never compiles one.
+// An unknown id changes nothing (§8).
+export const setShotFields = (project, shotId, fields) => (shotById(project, shotId)
+  ? touch({ ...project, film: { shots: project.film.shots.map((s) => (s.id === shotId ? { ...s, ...fields, id: s.id } : s)) } })
+  : project);
+
+// §3 invariant 2: refs order IS the citation numbering, so moving a shot NEVER rewrites
+// prompt text to compensate. Position is data; the prompt is untouched.
+export const moveShot = (project, shotId, toIndex) => {
+  const shots = [...project.film.shots];
+  const from = shots.findIndex((s) => s.id === shotId);
+  if (from < 0) return project;
+  const to = Math.max(0, Math.min(shots.length - 1, toIndex));
+  if (to === from) return project;
+  const [moved] = shots.splice(from, 1);
+  shots.splice(to, 0, moved);
+  return touch({ ...project, film: { shots } });
+};
+
+// Removing a shot orphans anything forked from it. Re-parent the children onto the
+// removed shot's own parent rather than dropping them — a fork is somebody's thinking.
+export const removeShot = (project, shotId) => {
+  const shot = shotById(project, shotId);
+  if (!shot) return project;
+  const shots = project.film.shots
+    .filter((s) => s.id !== shotId)
+    .map((s) => (s.parentId === shotId ? { ...s, parentId: shot.parentId } : s));
+  return touch({
+    ...project,
+    film: { shots },
+    threads: project.threads.map((t) => (t.subjectId === shotId ? { ...t, subjectId: null, status: 'idle' } : t)),
+  });
+};
+
+export const chooseTake = (project, shotId, takeId) => {
+  const shot = shotById(project, shotId);
+  if (!shot || !shot.takes.some((t) => t.id === takeId)) return project;   // unknown → nothing (§8)
+  return setShotFields(project, shotId, { chosenTakeId: takeId, stale: false });
+};
+
+// ---- latching --------------------------------------------------------------------
+
+// The one-way door. A unisex thread becomes a `shot`/`bible`/… thread and gains its
+// subject; from here §4 holds and the thread owns exactly one artifact. Re-latching is
+// refused outright rather than silently re-pointed.
+export const latchThread = (project, threadId, kind, { subjectId = null, title = '' } = {}) => {
+  const thread = threadById(project, threadId);
+  if (!thread) return { project, thread: null };
+  if (thread.kind) return { project, thread };                 // already latched — no-op
+  if (!THREAD_KINDS.includes(kind)) return { project, thread }; // unknown kind → nothing (§8)
+
+  let next = project;
+  let subject = subjectId;
+
+  if (!subject && (kind === 'shot' || kind === 'storyboard' || kind === 'edit')) {
+    const made = insertShot(next, { fields: { title } });
+    next = made.project;
+    subject = made.shot.id;
+  }
+  if (!subject && kind === 'bible') {
+    const entry = makeBibleEntry({ name: title });
+    next = touch({ ...next, bible: [...next.bible, entry] });
+    subject = entry.id;
+  }
+
+  const latched = { ...threadById(next, threadId), kind, subjectId: subject, title };
+  return {
+    project: touch({ ...next, threads: next.threads.map((t) => (t.id === threadId ? latched : t)) }),
+    thread: latched,
+  };
+};
+
+export const addThread = (project) => {
+  const thread = makeThread();
+  return { project: touch({ ...project, threads: [...project.threads, thread] }), thread };
+};
+
+export const unlatchedThreads = (project) => (project?.threads || []).filter((t) => !t.kind);
+
