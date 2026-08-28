@@ -1,0 +1,177 @@
+/* BRAVO — the shell.
+ *
+ * §2 replicates the Claude web layout: a rail of threads on the left, the open thread's
+ * transcript on the right, composer pinned below. The chrome underneath it is macOS: the
+ * system font stack, a draggable title strip, overlay scrollbars, and the light/dark
+ * split following the OS.
+ *
+ * One component library, no framework CSS. Every colour is a token here so the palette
+ * has exactly one definition per theme.
+ */
+
+:root {
+  /* Claude's warm neutrals — parchment canvas, a shade darker in the rail. */
+  --canvas:        #faf9f5;
+  --rail:          #f0eee6;
+  --raised:        #ffffff;
+  --ink:           #1f1e1d;
+  --ink-soft:      #4a4844;
+  --muted:         #83827d;
+  --faint:         #a8a69f;
+  --line:          rgba(31, 30, 29, 0.10);
+  --line-soft:     rgba(31, 30, 29, 0.06);
+  --hover:         rgba(31, 30, 29, 0.045);
+  --active:        rgba(31, 30, 29, 0.075);
+  --accent:        #c96442;
+  --accent-ink:    #ffffff;
+  --accent-wash:   rgba(201, 100, 66, 0.10);
+  --bubble:        #ebe9e1;
+
+  /* The rail's state glyphs (§2). Colour carries the same information as the shape, so
+     the row reads at a glance without decoding the character. */
+  --state-empty:   #b5b3ab;
+  --state-working: #b7791f;
+  --state-needs:   #c96442;
+  --state-settled: #5c8a5c;
+  --state-stale:   #b04a3d;
+
+  --rail-w:        272px;
+  --pane-w:        768px;   /* Claude's reading measure */
+  --chrome-h:      38px;    /* the draggable strip; traffic lights live here when packaged */
+  --radius:        10px;
+  --shadow-soft:   0 1px 2px rgba(31, 30, 29, 0.06), 0 4px 16px rgba(31, 30, 29, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --canvas:      #262624;
+    --rail:        #1f1e1d;
+    --raised:      #302f2c;
+    --ink:         #f5f4ef;
+    --ink-soft:    #d6d4cc;
+    --muted:       #9a9891;
+    --faint:       #6f6d67;
+    --line:        rgba(245, 244, 239, 0.12);
+    --line-soft:   rgba(245, 244, 239, 0.07);
+    --hover:       rgba(245, 244, 239, 0.055);
+    --active:      rgba(245, 244, 239, 0.09);
+    --accent:      #d97757;
+    --accent-ink:  #1f1e1d;
+    --accent-wash: rgba(217, 119, 87, 0.14);
+    --bubble:      #34332f;
+
+    --state-empty:   #6f6d67;
+    --state-working: #d9a441;
+    --state-needs:   #d97757;
+    --state-settled: #7fae7f;
+    --state-stale:   #e08472;
+
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(0, 0, 0, 0.22);
+  }
+}
+
+:root[data-theme='dark'] {
+  --canvas:      #262624;
+  --rail:        #1f1e1d;
+  --raised:      #302f2c;
+  --ink:         #f5f4ef;
+  --ink-soft:    #d6d4cc;
+  --muted:       #9a9891;
+  --faint:       #6f6d67;
+  --line:        rgba(245, 244, 239, 0.12);
+  --line-soft:   rgba(245, 244, 239, 0.07);
+  --hover:       rgba(245, 244, 239, 0.055);
+  --active:      rgba(245, 244, 239, 0.09);
+  --accent:      #d97757;
+  --accent-ink:  #1f1e1d;
+  --accent-wash: rgba(217, 119, 87, 0.14);
+  --bubble:      #34332f;
+
+  --state-empty:   #6f6d67;
+  --state-working: #d9a441;
+  --state-needs:   #d97757;
+  --state-settled: #7fae7f;
+  --state-stale:   #e08472;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 16px rgba(0, 0, 0, 0.22);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #__next {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Inter, system-ui, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;            /* the panes scroll, the window does not */
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* macOS overlay scrollbars: present while scrolling, invisible at rest. */
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scroll:hover { scrollbar-color: var(--line) transparent; }
+.scroll::-webkit-scrollbar { width: 9px; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+.scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.scroll:hover::-webkit-scrollbar-thumb { background: var(--line); background-clip: content-box; }
+
+/* The tabular figures the rail's shot numbers need to sit in a straight column. */
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+
+@keyframes bravo-spin { to { transform: rotate(360deg); } }
+@keyframes bravo-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* macOS window chrome. `-webkit-app-region` is meaningful only inside the packaged
+   desktop window; a browser tab ignores it. It is scoped to `body.desktop`, which the
+   packaged shell sets, so the drag strip can never swallow a click in the browser. */
+body.desktop .chrome { -webkit-app-region: drag; }
+body.desktop .drag   { -webkit-app-region: drag; }
+body.desktop .drag *,
+body.desktop button,
+body.desktop input,
+body.desktop textarea { -webkit-app-region: no-drag; }

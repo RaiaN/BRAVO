@@ -1,0 +1,18 @@
+{
+  "name": "bravo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BRAVO — an AI film studio with a Claude-style interface.",
+  "scripts": {
+    "dev": "NODE_USE_SYSTEM_CA=1 next dev",
+    "build": "NODE_USE_SYSTEM_CA=1 next build",
+    "start": "NODE_USE_SYSTEM_CA=1 next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@volcengine/tos-sdk": "^2.9.1",
+    "next": "15.5.24",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
