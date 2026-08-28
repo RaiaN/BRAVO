@@ -1,4 +1,4 @@
-// THE PROJECT — the data model of BRAVO.md §3, plus load / save / migrate.
+// THE PROJECT — the data model of docs/BRAVO.md §3, plus load / save / migrate.
 //
 // One canonical film; threads reference it. Everything here is a pure function over a
 // plain JSON object, so the same model serialises to disk, to localStorage, or over the

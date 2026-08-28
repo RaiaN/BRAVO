@@ -164,6 +164,7 @@ function Title({ label, title, onRename }) {
 
 export default function Thread({ project, thread, onSend, onRename }) {
   const scroller = useRef(null);
+  const restored = useRef({ threadId: null, ids: null });
   const subject = subjectOf(project, thread);
   const messages = thread?.messages || [];
 
@@ -203,6 +204,17 @@ export default function Thread({ project, thread, onSend, onRename }) {
     );
   }
 
+  // Is anyone actually looking? Read at render time: a turn that arrives in a hidden tab
+  // must not depend on an animation that will not run.
+  const watching = typeof document === 'undefined' || document.visibilityState === 'visible';
+
+  // The transcript as it arrived from the store. Everything in this set was already
+  // there when the thread opened, so it renders plainly; anything that appears later is
+  // a turn landing in front of you and gets the entry animation.
+  if (restored.current.threadId !== thread.id) {
+    restored.current = { threadId: thread.id, ids: new Set(messages.map((m) => m.id)) };
+  }
+
   // §8 forbids substituting a default: the label comes from this thread's own subject,
   // and a subject the film does not hold yields no number rather than someone else's.
   const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
@@ -231,11 +243,15 @@ export default function Thread({ project, thread, onSend, onRename }) {
                 agent composes, renders and reports here.
               </p>
             </div>
-          ) : messages.map((m) => (
-            m.role === 'user'
-              ? <UserMessage key={m.id} message={m} />
-              : <AgentMessage key={m.id} message={m} />
-          ))}
+          ) : messages.map((m) => {
+            // Animate only a turn that lands in front of a watching reader. A hidden tab
+            // freezes animations mid-flight, and a frozen fade-in is an invisible
+            // message — so when nobody is looking the turn simply appears.
+            const enter = !restored.current.ids.has(m.id) && watching;
+            return m.role === 'user'
+              ? <UserMessage key={m.id} message={m} enter={enter} />
+              : <AgentMessage key={m.id} message={m} enter={enter} />;
+          })}
 
           {/* Shell chrome, not a turn: at M1 the thread has no agent, and silence after
               a send would read as a fault rather than as the milestone it is. */}
