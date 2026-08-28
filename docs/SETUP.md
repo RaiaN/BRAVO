@@ -16,27 +16,33 @@ remove it: `rm -rf ~/.local/node`.
 
 ## Running it
 
-Node is NOT on your shell `PATH` — a bare `npm run ...` will say `command not found`.
-`./dev.sh` is the entry point that needs nothing set up: it puts `~/.local/node/bin` on
-`PATH`, sets `NODE_USE_SYSTEM_CA=1` (§10 — the server must trust this network's own CA)
-and defaults `$PORT` to 3210, since 3000 is usually taken on this machine.
+Standard npm scripts, same as the ModelArk starter kit:
 
 ```bash
-./dev.sh              # web — next dev, open the printed URL
-./dev.sh desktop      # the real macOS window, hot reload
-./dev.sh package      # build the .dmg (slow — see docs/DESKTOP.md)
+npm run dev            # web
+npm run dev:desktop    # the macOS window, hot reload
+npm run build:desktop  # the .dmg
 ```
 
-Override the port with `PORT=3400 ./dev.sh desktop`. Anything else is passed through to
-`npm run`, so `./dev.sh lint` works too.
+The desktop pair defaults to port **3210**, not 3000 — something else on this machine
+holds 3000 permanently, and `wait-on` would poll it forever while `next` quietly moved to
+3001 and the window never opened. Override with `PORT=3400 npm run dev:desktop`.
 
-### Or put Node on your PATH permanently
+### Node is not where you'd expect
 
-Then plain `npm run dev:desktop` works in any shell:
+This machine had no Node at all, so an official build lives at `~/.local/node` and
+`~/.zshrc` puts it on `PATH`:
 
-```bash
-echo 'export PATH="$HOME/.local/node/bin:$PATH"' >> ~/.zshrc && exec zsh
 ```
+export PATH="$HOME/.local/node/bin:$PATH"
+```
+
+Without that line `npm` is `command not found` in every project, not just this one. To
+undo: delete the block from `~/.zshrc` and `rm -rf ~/.local/node`.
+
+`./dev.sh` does the same job without touching `PATH` (`./dev.sh`, `./dev.sh desktop`,
+`./dev.sh package`) — useful from a shell that has not sourced `.zshrc`, such as a
+non-interactive script or a cron job.
 
 ## Build
 
