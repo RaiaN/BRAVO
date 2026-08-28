@@ -17,9 +17,20 @@ function Composer({ onSend, subjectLabel }) {
 
   // Grow to fit, then stop and scroll. Measured from a reset height so deleting a line
   // shrinks it back — reading scrollHeight without the reset only ever grows.
+  //
+  // An EMPTY composer is never measured. The first layout effect can run before the
+  // frame has settled, and a scrollHeight read then comes back wildly too large — which
+  // clamps to MAX and leaves an empty box eight lines tall. Nothing needs measuring to
+  // know that no text is one line, so CSS owns the resting height and JS only ever grows
+  // it once there is content to grow around.
   const fit = () => {
     const el = ref.current;
     if (!el) return;
+    if (!text) {
+      el.style.removeProperty('height');   // back to the CSS one-liner
+      el.style.overflowY = 'hidden';
+      return;
+    }
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_PX)}px`;
     el.style.overflowY = el.scrollHeight > MAX_COMPOSER_PX ? 'auto' : 'hidden';
@@ -86,6 +97,9 @@ function Composer({ onSend, subjectLabel }) {
           flex: 1; min-width: 0;
           padding: 6px 0; border: 0; outline: none; resize: none;
           background: transparent; line-height: 1.55;
+          /* The resting size, owned by CSS so an empty composer is correct on the very
+             first paint with no measurement involved. rows=1 supplies the line. */
+          height: auto; overflow-y: hidden;
           max-height: ${MAX_COMPOSER_PX}px;
         }
         textarea::placeholder { color: var(--faint); }

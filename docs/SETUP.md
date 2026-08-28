@@ -14,26 +14,34 @@ This machine had no Node on `PATH`, so an official build lives outside the repo:
 Nothing else on the system was touched — no Homebrew formula, no shell profile edit. To
 remove it: `rm -rf ~/.local/node`.
 
-## Dev server
+## Running it
+
+Node is NOT on your shell `PATH` — a bare `npm run ...` will say `command not found`.
+`./dev.sh` is the entry point that needs nothing set up: it puts `~/.local/node/bin` on
+`PATH`, sets `NODE_USE_SYSTEM_CA=1` (§10 — the server must trust this network's own CA)
+and defaults `$PORT` to 3210, since 3000 is usually taken on this machine.
 
 ```bash
-./dev.sh
+./dev.sh              # web — next dev, open the printed URL
+./dev.sh desktop      # the real macOS window, hot reload
+./dev.sh package      # build the .dmg (slow — see docs/DESKTOP.md)
 ```
 
-`dev.sh` puts `~/.local/node/bin` on `PATH`, sets `NODE_USE_SYSTEM_CA=1` (§10 — the dev
-server must trust this network's own CA) and runs `next dev`. It honours `$PORT`, so pass
-one if 3000 is taken:
+Override the port with `PORT=3400 ./dev.sh desktop`. Anything else is passed through to
+`npm run`, so `./dev.sh lint` works too.
+
+### Or put Node on your PATH permanently
+
+Then plain `npm run dev:desktop` works in any shell:
 
 ```bash
-PORT=3100 ./dev.sh
+echo 'export PATH="$HOME/.local/node/bin:$PATH"' >> ~/.zshrc && exec zsh
 ```
-
-If Node is already on your `PATH`, `npm run dev` does the same thing.
 
 ## Build
 
 ```bash
-NODE_USE_SYSTEM_CA=1 npx next build
+./dev.sh build
 ```
 
 `utils/film/server/stitch.js` warns that `ffmpeg-static` is unresolved. That is by
