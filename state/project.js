@@ -137,41 +137,27 @@ export const stateOf = (project, thread) => {
   return 'empty';
 };
 
-export const migrate = (raw) => {
-  if (!raw || typeof raw !== 'object') return null;
-  const project = { ...raw };
-  project.schemaVersion = SCHEMA_VERSION;
-  project.id = project.id || newId('prj');
-  project.title = typeof project.title === 'string' ? project.title : 'Untitled film';
-  project.createdAt = project.createdAt || new Date().toISOString();
-  project.updatedAt = project.updatedAt || project.createdAt;
-  project.look = { style: '', grade: '', notes: '', ...(project.look || {}) };
-  project.bible = Array.isArray(project.bible) ? project.bible.map((b) => makeBibleEntry(b)) : [];
-  project.activity = Array.isArray(project.activity) ? project.activity : [];
-  const shots = Array.isArray(project.film?.shots) ? project.film.shots : [];
-  project.film = { shots: shots.map((s) => makeShot(s)) };
-  const threads = Array.isArray(project.threads) ? project.threads : [];
-  project.threads = threads.map((t) => makeThread({
-    ...t,
-    kind: THREAD_KINDS.includes(t.kind) ? t.kind : null,
-    messages: Array.isArray(t.messages) ? t.messages.map((m) => makeMessage(m)) : [],
-    budget: { takesCap: 4, spentTakes: 0, ...(t.budget || {}) },
-  }));
-  if (!project.threads.length) project.threads.push(makeThread());
-
-  const stillRendering = new Set((project.activity || []).filter((a) => a.state === 'running').map((a) => a.threadId));
-  project.threads = project.threads.map((t) => (t.status === 'working' && !stillRendering.has(t.id)
-    ? {
+const hydrate = (raw, key) => {
+  const broken = (what) => {
+    throw new Error(`The saved film at "${key}" ${what}. It has NOT been overwritten.`);
+  };
+  if (!raw || typeof raw !== 'object') broken('is not a project');
+  if (typeof raw.id !== 'string' || !raw.id) broken('has no id');
+  if (!Array.isArray(raw.film?.shots)) broken('has no film');
+  if (!Array.isArray(raw.threads)) broken('has no threads');
+  return {
+    ...raw,
+    schemaVersion: SCHEMA_VERSION,
+    look: { style: '', grade: '', notes: '', ...(raw.look || {}) },
+    bible: (Array.isArray(raw.bible) ? raw.bible : []).map((b) => makeBibleEntry(b)),
+    activity: Array.isArray(raw.activity) ? raw.activity : [],
+    film: { shots: raw.film.shots.map((sh) => makeShot(sh)) },
+    threads: raw.threads.map((t) => makeThread({
       ...t,
-      status: 'needs-you',
-      messages: [...t.messages, makeMessage({
-        role: 'agent',
-        text: 'That turn was interrupted — the page reloaded while I was working. Nothing was lost. Say it again and I will pick it up.',
-      })],
-    }
-    : t));
-
-  return project;
+      messages: (Array.isArray(t.messages) ? t.messages : []).map((m) => makeMessage(m)),
+      budget: { takesCap: 4, spentTakes: 0, ...(t.budget || {}) },
+    })),
+  };
 };
 
 const KEY_INDEX = 'bravo:projects';
@@ -213,37 +199,19 @@ const indexAdd = (id) => {
 
 export const loadProject = (id = null) => {
   if (typeof window === 'undefined') return null;
-  try {
-    const legacy = window.localStorage.getItem(STORAGE_KEY);
-    if (legacy) {
-      const lifted = migrate(JSON.parse(legacy));
-      if (lifted) {
-        writeJSON(keyFor(lifted.id), lifted);
-        indexAdd(lifted.id);
-        writeJSON(KEY_OPEN, lifted.id);
-      }
-      window.localStorage.removeItem(STORAGE_KEY);
-      if (!id) return lifted;
-    }
-    const want = id || readJSON(KEY_OPEN, null) || listProjects()[0]?.id;
-    if (!want) return null;
+  const want = id || readJSON(KEY_OPEN, null) || listProjects()[0]?.id;
+  if (!want) return null;
 
-    const key = keyFor(want);
-    const raw = window.localStorage.getItem(key);
-    if (raw === null) return null;
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      throw new Error(`The saved film at "${key}" could not be read (${err.message}). It has NOT been overwritten.`);
-    }
-    const project = migrate(parsed);
-    if (!project) throw new Error(`The saved film at "${key}" is not a project. It has NOT been overwritten.`);
-    return project;
+  const key = keyFor(want);
+  const raw = window.localStorage.getItem(key);
+  if (raw === null) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
   } catch (err) {
-    if (err instanceof Error && /could not be read|is not a project/.test(err.message)) throw err;
-    return null;
+    throw new Error(`The saved film at "${key}" could not be read (${err.message}). It has NOT been overwritten.`);
   }
+  return hydrate(parsed, key);
 };
 
 export const saveProject = (project) => {

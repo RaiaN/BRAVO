@@ -20,7 +20,7 @@ import { applyDeployModels } from '../utils/film/suiteConfig';
 import { hydrateSkills } from '../utils/film/skills';
 import '../agents';
 import { advance, approveCall, cancelCall } from '../agents/session';
-import { resumeActivity } from '../agents/resume';
+import { reconcileInterrupted, resumeActivity } from '../agents/resume';
 
 const THEME_KEY = 'bravo:theme';
 const SAVE_DEBOUNCE_MS = 300;
@@ -52,7 +52,7 @@ export default function Shell() {
       setLoadError(err.message);
       return;
     }
-    const next = stored || makeProject();
+    const next = stored ? reconcileInterrupted(stored) : makeProject();
     if (!stored) saveProject(next);
     setProject(next);
     setOpenThreadId(next.threads[0]?.id || null);
@@ -174,6 +174,7 @@ export default function Shell() {
     let loaded;
     try { loaded = loadProject(id); } catch (err) { setLoadError(err.message); return; }
     if (!loaded) return;
+    loaded = reconcileInterrupted(loaded);
     latest.current = loaded;
     setProject(loaded);
     setOpenThreadId(loaded.threads[0]?.id || null);

@@ -1,5 +1,5 @@
 import {
-  appendMessage, newId, patchActivity, removeActivity, setShotFields, shotById, threadById,
+  appendMessage, makeMessage, newId, patchActivity, removeActivity, setShotFields, shotById, threadById,
 } from '../state/project.js';
 
 const landTake = (project, shotId, take) => {
@@ -59,4 +59,23 @@ export const resumeActivity = async ({ client, project, onProgress = () => {} })
     onProgress(p);
   }
   return p;
+};
+
+export const reconcileInterrupted = (project) => {
+  const stillRendering = new Set((project.activity || []).filter((a) => a.state === 'running').map((a) => a.threadId));
+  const stuck = project.threads.filter((t) => t.status === 'working' && !stillRendering.has(t.id));
+  if (!stuck.length) return project;
+  return {
+    ...project,
+    threads: project.threads.map((t) => (stuck.includes(t)
+      ? {
+        ...t,
+        status: 'needs-you',
+        messages: [...t.messages, makeMessage({
+          role: 'agent',
+          text: 'That turn was interrupted — the page reloaded while I was working. Nothing was lost. Say it again and I will pick it up.',
+        })],
+      }
+      : t)),
+  };
 };
