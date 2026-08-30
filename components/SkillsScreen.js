@@ -30,7 +30,7 @@ export default function SkillsScreen({ onClose }) {
   const open = useMemo(() => skills.find((s) => s.id === openId) || null, [skills, openId]);
   const refresh = () => setTick((t) => t + 1);
 
-  const unbound = SLOTS.filter((slot) => !skills.some((s) => (s.models || []).includes(slot) && String(s.text || '').trim()));
+  const unbound = SLOTS.filter((slot) => slot !== 'reasoner' && !skills.some((s) => (s.models || []).includes(slot) && String(s.text || '').trim()));
 
   const startEdit = (s) => { setOpenId(s.id); setDraft(s.text || ''); };
   const save = () => { setSkillText(open.id, draft); refresh(); };
