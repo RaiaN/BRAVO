@@ -100,14 +100,14 @@ test('a thread title is capped at five words (§8 gate)', async () => {
 // The first version of this gate also flagged an HONEST sentence describing what a card
 // would do once approved. A gate that cries wolf gets ignored, so both directions matter.
 test('fabricated completion is caught, and honest reports are not', async () => {
-  const { fabricatedCompletion } = await import('../../agents/loop.js');
+  const { noFabricatedCompletion } = await import('../../agents/guards.js');
 
   for (const lie of [
     'Shot 03 is now queued for render. This render job will process unattended.',
     'Processing will complete automatically. You will be notified when ready.',
     'It is rendering in the background now.',
   ]) {
-    assert.ok(fabricatedCompletion(lie, false), `should have caught: ${lie}`);
+    assert.ok(noFabricatedCompletion({ prose: lie, rendered: false }), `should have caught: ${lie}`);
   }
 
   for (const honest of [
@@ -115,9 +115,27 @@ test('fabricated completion is caught, and honest reports are not', async () => 
     'I retitled shot 03 and set its duration.',
     'I cannot render yet — this shot has no prompt.',
   ]) {
-    assert.equal(fabricatedCompletion(honest, false), null, `false positive on: ${honest}`);
+    assert.equal(noFabricatedCompletion({ prose: honest, rendered: false }), null, `false positive on: ${honest}`);
   }
 
   // When a render genuinely happened this turn, the same words are simply true.
-  assert.equal(fabricatedCompletion('Shot 03 is now queued for render.', true), null);
+  assert.equal(noFabricatedCompletion({ prose: 'Shot 03 is now queued for render.', rendered: true }), null);
+});
+
+// Guards are composable units the engine runs without knowing what they check.
+test('runGuards collects every correction and swallows a throwing guard', async () => {
+  const { runGuards } = await import('../../agents/guards.js');
+  const boom = () => { throw new Error('a broken guard must not kill the turn'); };
+  const out = runGuards([() => 'first', boom, () => null, () => 'second'], { prose: 'x' });
+  assert.deepEqual(out, ['first', 'second']);
+});
+
+// An agent repeating the same failing call is thrashing, not working.
+test('the thrash guard stops a repeated identical failure', async () => {
+  const { makeThrashGuard } = await import('../../agents/guards.js');
+  const thrash = makeThrashGuard(2);
+  assert.equal(thrash('still', 'no prompt yet'), null, 'the first failure is just a failure');
+  assert.match(thrash('still', 'no prompt yet'), /failed the same way/, 'the second is a pattern');
+  assert.equal(thrash('still', 'a different error'), null, 'a different error starts its own count');
+  assert.equal(thrash('compose', null), null, 'a success never trips it');
 });
