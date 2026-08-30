@@ -12,8 +12,7 @@ Read the person's first message and answer with ONE fenced block tagged \`bravo\
 \`\`\`
 
 "title" is a SHORT name for what this thread is about — AT MOST FIVE WORDS, in the
-person's own words where you can. Lowercase, no punctuation at the end. "the collision",
-not "shot 3 is the collision where the wolf lands on the log".
+person's own words where you can. Lowercase, plain words: "the collision".
 
 If the message genuinely does not indicate which agent is wanted, do NOT pick one. Ask:
 

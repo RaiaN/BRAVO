@@ -40,8 +40,8 @@ every shot which cites it draws the same thing. : consistency is ATTACHMENT, not
 description. The plate rides in the request; the shot's prompt cites it and does NOT
 re-describe it.
 
-A plate is neutral: the subject square in frame, plainly lit, no drama, no action, no
-camera language. The wolf mid-leap is a shot. The wolf standing square is a plate.
+A plate is neutral: the subject square in frame, plainly lit. A subject in motion is a
+shot; the subject standing square is a plate. Drama belongs in the take that cites it.
 
 HOW YOU WORK:
 1. \`write\` the entry's name and role (character, location or prop) if they are not set.

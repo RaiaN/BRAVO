@@ -37,11 +37,10 @@ const writeStore = (next) => {
 
 export const hydrateSkills = async () => {
   if (hydrated) return diskSkills;
-  try {
-    const r = await fetch('/api/film/skills');
-    const j = await r.json();
-    diskSkills = Array.isArray(j.skills) ? j.skills : [];
-  } catch { diskSkills = []; }
+  const r = await fetch('/api/film/skills');
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || `skills route failed (HTTP ${r.status})`);
+  diskSkills = Array.isArray(j.skills) ? j.skills : [];
   hydrated = true;
   return diskSkills;
 };

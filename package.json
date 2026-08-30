@@ -7,8 +7,8 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "NODE_USE_SYSTEM_CA=1 next dev",
-    "build": "NODE_USE_SYSTEM_CA=1 next build",
-    "start": "NODE_USE_SYSTEM_CA=1 next start",
+    "build": "NODE_USE_SYSTEM_CA=1 NEXT_DIST_DIR=.next-build next build",
+    "start": "NODE_USE_SYSTEM_CA=1 NEXT_DIST_DIR=.next-build next start",
     "lint": "next lint",
     "dev:next": "NODE_USE_SYSTEM_CA=1 next dev -p ${PORT:-3210}",
     "dev:electron": "wait-on http://localhost:${PORT:-3210} && BRAVO_DEV_URL=http://localhost:${PORT:-3210} NODE_USE_SYSTEM_CA=1 electron .",
@@ -36,8 +36,8 @@
     "asar": false,
     "files": [
       "electron/**/*",
-      ".next/**/*",
-      "!.next/cache/**/*",
+      ".next-build/**/*",
+      "!.next-build/cache/**/*",
       "skills/**/*",
       "public/**/*",
       "package.json",

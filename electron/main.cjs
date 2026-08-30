@@ -87,6 +87,7 @@ const createMainWindow = async () => {
 
   try { process.chdir(appDir); } catch { }
 
+  process.env.NEXT_DIST_DIR = '.next-build';
   const port = await findOpenPort(3000);
   nextServer = next({ dev: false, dir: appDir });
   const handle = nextServer.getRequestHandler();

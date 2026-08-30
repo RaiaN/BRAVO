@@ -149,7 +149,7 @@ const choose = {
 const tag = {
   name: 'tag',
   gated: false,
-  describe: 'tag — { "name": "the wolf", "role": "character|location|prop", "url": "<a rendered still url>", "notes": "" }. Files a plate into the bible.',
+  describe: 'tag — { "name": "<subject>", "role": "character|location|prop", "url": "<a rendered still url>", "notes": "" }. Files a plate into the bible.',
   validate: (input) => {
     if (!String(input.name || '').trim()) return 'tag: needs a "name"';
     if (!input.role) return 'tag: needs a "role" — character, location, prop or frame';

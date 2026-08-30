@@ -42,9 +42,9 @@ const DOCTRINE = `Write the FINAL PROMPT for this shot. What you return is sent 
 verbatim — it is not a draft, a description, or a plan. Return the prompt and nothing else:
 no preamble, no explanation, no quotes around it, no markdown fence.
 
-THE VIDEO MODEL IS A WORLD MODEL. Specify the world and pose the situation; never
-choreograph the outcome. Name a STATE ("the wolf is cornered and means it"), never a
-feature ("guard hairs lift") — a feature instruction renders literally.
+THE VIDEO MODEL IS A WORLD MODEL. Specify the world and pose the situation; the model
+plays the outcome. Describe the state of each subject and the moment they are in; a
+listed physical detail renders literally, so keep detail to what identifies the moment.
 
 NEVER write duration, aspect ratio or resolution into the prompt. They are sent as fields.
 
@@ -55,11 +55,10 @@ const PLATE_DOCTRINE = `Write the FINAL PROMPT for this reference PLATE. What yo
 sent to the image model verbatim — return the prompt and nothing else: no preamble, no
 explanation, no quotes, no markdown fence.
 
-A PLATE IS NOT A SHOT. It is the reference that will RIDE in later requests so every shot
-draws the same subject. Neutral presentation, plainly lit, the subject square in frame. No
-drama, no action, no story beat, no camera or lens language.
-
-Name a STATE, never a feature. Never write duration, aspect ratio or resolution.`;
+A plate is the reference that rides in later requests so every shot draws the same
+subject. Neutral presentation, plainly lit, the subject square in frame; drama belongs in
+the take that cites it. Keep the prompt to the subject itself — duration, aspect ratio and
+resolution travel as fields.`;
 
 const runCompose = async ({ input, project, thread, ctx, mode }) => {
   const shot = resolveSubject(project, thread, input.shot);

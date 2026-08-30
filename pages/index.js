@@ -96,7 +96,7 @@ export default function Shell() {
         const cfg = await res.json();
         if (cfg?.models) applyDeployModels(cfg.models);
       } catch { }
-      hydrateSkills();
+      hydrateSkills().catch(() => {});
 
       if ((latest.current?.activity || []).some((a) => a.state === 'running')) {
         const next = await resumeActivity({

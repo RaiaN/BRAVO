@@ -19,7 +19,7 @@ then on that thread is that agent's:
 | **Shot** | make one shot good — compose its prompt, render takes |
 | **Edit** | operate on an existing take — a Seedance 2.5 editing task, or a fresh one |
 | **Storyboard** | draw the film as a storyboard image |
-| **Bible** | build a reference plate so every shot draws the same wolf |
+| **Bible** | build a reference plate so every shot draws the same subject |
 
 Prompts are written under the model vendor's own prompt spec, sent verbatim. Anything that
 costs money shows you the exact prompt and the exact ordered references first, and sends

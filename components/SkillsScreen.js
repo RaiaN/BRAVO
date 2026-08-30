@@ -15,7 +15,10 @@ export default function SkillsScreen({ onClose }) {
   const [lock, setLock] = useState({});
   const [lockError, setLockError] = useState(null);
 
-  useEffect(() => { hydrateSkills().then(() => setSkills(allSkills())); }, []);
+  const [loadError, setLoadError] = useState(null);
+  useEffect(() => {
+    hydrateSkills().then(() => setSkills(allSkills())).catch((e) => setLoadError(e.message));
+  }, []);
   useEffect(() => {
     fetch('/api/skills-lock')
       .then((r) => r.json())
@@ -45,6 +48,10 @@ export default function SkillsScreen({ onClose }) {
             the system prompt of every call that model makes. A slot with nothing bound
             refuses to compose — there is no fallback and no house style.
           </p>
+
+          {loadError && (
+            <p className="warn">The skills library could not be loaded: {loadError}</p>
+          )}
 
           {lockError && (
             <p className="warn">Provenance unavailable ({lockError}) — vendor and local specs cannot be told apart below.</p>

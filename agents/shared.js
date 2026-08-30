@@ -12,8 +12,9 @@ export const filmLines = (project) => {
   return rows.map((r) => `  ${r.label} "${r.shot.title || '—'}"${r.shot.prompt ? ' · has a prompt' : ''}${r.shot.takes.length ? ` · ${r.shot.takes.length} take(s)` : ''}${r.shot.chosenTakeId ? ' · chosen' : ''}`).join('\n');
 };
 
-export const SHARED = `THE VIDEO MODEL IS A WORLD MODEL. Name a STATE ("the wolf is cornered and
-means it"), never a feature ("guard hairs lift") — a feature instruction renders literally.
+export const SHARED = `THE VIDEO MODEL IS A WORLD MODEL. Describe the state of the world and
+the intent of its subjects; the model performs behavior from state. A listed physical
+detail renders literally, so keep detail to what identifies the moment.
 
 Prompts are written by \`compose\`, under the spec bound to the model slot. You never write
 prompt text yourself, and a slot with no spec bound REFUSES rather than falling back.
