@@ -44,3 +44,18 @@ export const serverUp = async (base = BASE) => {
     return r.ok;
   } catch { return false; }
 };
+
+// The kit is written for a browser: `hydrateSkills` fetches the RELATIVE url
+// `/api/film/skills`, which Node cannot resolve. Rather than change the kit (§10), give
+// Node an origin — wrap global fetch so relative /api/... paths resolve against the test
+// server, exactly as they would in a page served from it.
+export const installRelativeFetch = (base = BASE) => {
+  const real = globalThis.fetch;
+  if (real.__bravoWrapped) return;
+  const wrapped = (input, init) => {
+    if (typeof input === 'string' && input.startsWith('/')) return real(`${base}${input}`, init);
+    return real(input, init);
+  };
+  wrapped.__bravoWrapped = true;
+  globalThis.fetch = wrapped;
+};

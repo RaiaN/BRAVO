@@ -12,13 +12,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { insertShot, latchThread, makeProject, threadById, appendMessage } from '../../state/project.js';
+import { insertShot, latchThread, makeProject, threadById, appendMessage, shotById } from '../../state/project.js';
+import { TOOLS } from '../../agents/tools/index.js';
+import { composeGates } from '../../agents/tools/compose.js';
+import { requireSkillLine } from '../../utils/film/skills.js';
+import { applyDeployModels } from '../../utils/film/suiteConfig.js';
 import { parseReply } from '../../agents/protocol.js';
 import { route } from '../../agents/router.js';
 import { runTurn } from '../../agents/loop.js';
 import { THREAD_KINDS } from '../../state/project.js';
 import { gates, assertNoSpend } from './gates.js';
-import { serverUp, testClient } from './client.js';
+import { installRelativeFetch, serverUp, testClient } from './client.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -77,6 +81,36 @@ const runShotCase = async (client, c) => {
   return { fails, detail: { used, prose: prose.slice(0, 400), errors: errored.map((m) => m.tool.output.error) } };
 };
 
+const runComposeCase = async (client, c) => {
+  let p = makeProject();
+  const made = insertShot(p, { fields: { title: c.shot.title, model: c.shot.model, refs: c.shot.refs || [] } });
+  p = made.project;
+  const r = await TOOLS.compose.run({
+    input: { shot: made.shot.id, note: c.note, dialogue: c.dialogue || [] },
+    project: p,
+    thread: null,
+    ctx: { client, requireSkillLine, modelId: null },
+  });
+
+  const fails = [];
+  const out = r.output;
+  if (c.expect.refuses) {
+    if (out.kind !== 'error') fails.push(`should have REFUSED, but composed: ${String(out.prompt).slice(0, 120)}`);
+    else if (!c.expect.refuses.test(out.error)) fails.push(`refused for the wrong reason: ${out.error}`);
+    return { fails, detail: { refused: out.kind === 'error', error: out.error } };
+  }
+  if (out.kind !== 'prompt') {
+    fails.push(`did not compose: ${out.error || out.kind}`);
+    return { fails, detail: out };
+  }
+  // The gates again, from outside the tool — proving they held, not that they ran.
+  const refs = (c.shot.refs || []).length;
+  const problems = composeGates(out.prompt, { refCount: refs, dialogue: c.dialogue || [] });
+  if (problems.length) fails.push(`saved a prompt that fails its own gates: ${problems.join(' / ')}`);
+  if (!shotById(r.project, made.shot.id).prompt) fails.push('the prompt was not saved onto the shot');
+  return { fails, detail: { model: out.model, gates: out.gatesPassed, prompt: out.prompt } };
+};
+
 const main = async () => {
   const client = testClient({
     onCall: ({ tool }) => { if (GATED.includes(tool)) spent.push(tool); },
@@ -87,9 +121,20 @@ const main = async () => {
     process.exit(2);
   }
 
+  // Give the kit's browser-shaped code an origin before anything calls it.
+  installRelativeFetch(client.base);
+
+  // The browser hydrates the model table from this route on boot; Node must too, or every
+  // slot looks unconfigured and the wrong skill binds.
+  try {
+    const cfg = await (await fetch(`${client.base}/api/film/config`)).json();
+    if (cfg?.models) applyDeployModels(cfg.models);
+  } catch { /* reported by serverUp above */ }
+
   const suites = [
     { dir: 'router', run: runRouterCase },
     { dir: 'shot', run: runShotCase },
+    { dir: 'compose', run: runComposeCase },
   ].filter((s) => !only || s.dir === only);
 
   let pass = 0;
@@ -119,7 +164,7 @@ const main = async () => {
       result.fails.forEach((f) => console.log(`      ${f}`));
       lines.push(
         `### ${ok ? '✓' : '✗'} ${c.name}`, '',
-        `**input:** ${c.input}`, '', `**why this case exists:** ${c.why}`, '',
+        `**input:** ${c.input || c.note}`, '', `**why this case exists:** ${c.why}`, '',
         '```json', JSON.stringify(result.detail, null, 1), '```', '',
         ...(ok ? [] : ['**failed:**', ...result.fails.map((f) => `- ${f}`), '']),
       );
