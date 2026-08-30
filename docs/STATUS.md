@@ -40,25 +40,3 @@ and a macOS package.
 4. **Packaging size.** `asar: false` costs a 598 MB bundle, because the skills library is
    resolved through `process.cwd()` and `process.chdir` cannot enter an asar archive.
    Shipping `.agents` via `extraResources` would let asar back on.
-
-## Bugs worth remembering
-
-Each of these is now covered by a test.
-
-- The router's answer was parsed with the **tool-call** rules, so every valid route was
-  discarded as malformed and everything fell through to "ask".
-- **`write` accepted any string as a model slot.** An agent wrote `model: "storyboard"`,
-  stored silently, then refused to compose against a slot that does not exist.
-- A **bible thread owns an entry, not a shot**, so `compose` and `still` failed on every
-  call and the agent looped five times.
-- An agent **fabricated a render queue** — "queued… will process unattended… you will be
-  notified" — after running only `write`. There is no queue. The guard that catches this
-  first fired on an *honest* sentence too, which is its own kind of failure.
-- Concurrent turns each wrote back **a whole project computed from their own snapshot**, so
-  the later writer erased the other agent's work.
-- **Media URLs expire in about a day.** Takes now keep the media store's durable copy.
-- A **hidden tab rendered the transcript blank** — a frozen entry animation held every
-  message at `opacity: 0`.
-- The **packaged app could not reach ModelArk at all**: Node builds its CA store from the
-  environment at startup, so setting `NODE_USE_SYSTEM_CA` inside `main.cjs` did nothing.
-- **`next build` clobbers a running `next dev`** — same `.next` directory.

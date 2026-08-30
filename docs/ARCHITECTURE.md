@@ -141,6 +141,8 @@ These are load-bearing. Breaking one produces a bug that looks like something el
 ## Wire contracts worth knowing
 
 - Video is asynchronous: start returns a task id, then poll.
+- An editing task locks ratio and duration — sending either fails with
+  `InvalidParameter.TaskTypeConstraint`. Resolution is still honoured.
 - `duration: 'auto'` omits the field entirely.
 - Generated media URLs expire in about a day — takes and plates keep the media store's
   durable copy.

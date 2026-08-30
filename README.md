@@ -27,7 +27,8 @@ nothing until you approve it.
 
 ## Running it
 
-Needs Node 20+ and a ModelArk account.
+Needs Node 20+ and a ModelArk account. (On this machine Node lives at `~/.local/node`,
+added to `PATH` in `~/.zshrc`, because nothing else provided it.)
 
 ```bash
 npm install
@@ -37,6 +38,10 @@ npm run dev
 
 Then open the printed URL. `NODE_USE_SYSTEM_CA=1` is set by the scripts, which matters on a
 network that intercepts TLS.
+
+**Stop the dev server before building.** `next build` writes the same `.next` directory
+`next dev` serves from, so building while dev runs breaks it — every route then throws
+`Cannot find module './chunks/vendor-chunks/next.js'` until you restart.
 
 ### As a macOS app
 
@@ -73,11 +78,9 @@ utils/film/        the ModelArk transport kit, unchanged
 ## Docs
 
 - [Architecture](docs/ARCHITECTURE.md) — the boundaries, and which file to touch
-- [Setup](docs/SETUP.md) — running it, and the traps
 - [Desktop](docs/DESKTOP.md) — how the macOS app is built
 - [Testing](docs/TESTING.md) — the agent test contract
 - [Status](docs/STATUS.md) — what works, what does not
-- [Transport kit](docs/transport-kit.md) — the model layer
 
 ## Skills
 
@@ -88,6 +91,24 @@ bindings and where it came from.
 
 `skills-lock.json` records each one's source and hash, so a vendor document is never
 mistaken for something written locally.
+
+| Skill | Source | Bound to |
+|---|---|---|
+| `sd25-pe` | vendor | seedance25 |
+| `sd20-pe` | vendor | seedance, seedanceFast, seedanceMini |
+| `seedance-camera` | starter kit | all seedance slots |
+| `seedance-compose` | starter kit | **nothing — incompatible** |
+| `seedance-direct` | starter kit | **nothing — incompatible** |
+| `plate-pe` | written for BRAVO | seedream, seedreamPro |
+
+The two unbound ones end with *"Return ONLY JSON"* and assume a caller-side compiler.
+BRAVO has none — the prompt is the prompt, and `compose` saves what comes back verbatim —
+so binding them would store a JSON blob as the shot's prompt. They are installed to be read
+and adapted, not to ride.
+
+`plate-pe` exists because the Seedream slots had nothing bound, and an unbound slot refuses
+to compose. It is not a vendor document and says so; replace it when an official Seedream
+spec exists.
 
 ## Status
 
