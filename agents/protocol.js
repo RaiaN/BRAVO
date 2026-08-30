@@ -1,13 +1,9 @@
 // THE TOOL-CALL PROTOCOL.
 //
-// `/api/seed` has no function calling — it takes a prompt and returns a plain string
-// (§10 keeps the kit unchanged, so we do not add `tools` to it). The agent therefore
-// speaks a text grammar and BRAVO parses it.
-//
-// That makes this file the code gate §8 demands: "every LLM promise needs a code gate — a
-// deterministic check, a retry, a visible report." Nothing downstream trusts the model.
-// A call that does not parse, names a tool the agent does not hold, or carries the wrong
-// shape of input, is REJECTED here and reported — never guessed at, never defaulted.
+// The reasoner route has no function calling — it takes a prompt and returns a string. So
+// agents speak a text grammar and BRAVO parses it, which makes this file the gate:
+// nothing downstream trusts the model. A call that does not parse, names a tool the agent
+// does not hold, or carries the wrong shape, is refused here and reported.
 
 export const FENCE = 'bravo';
 
@@ -87,8 +83,8 @@ export const parseReply = (text) => {
 // ---- the gate --------------------------------------------------------------------
 
 // A call the agent is not allowed to make is not an error to recover from — it is a
-// refusal to report (§8: an unknown id resolves to nothing). `allowed` is the agent's own
-// tool list from §4, so an agent can never reach a tool outside its row.
+// refusal to report (an unknown id resolves to nothing). `allowed` is the agent's own
+// tool list from , so an agent can never reach a tool outside its row.
 export const gateCall = (call, allowed, tools) => {
   if (!allowed.includes(call.tool)) {
     return { ok: false, reason: `"${call.tool}" is not a tool this agent holds (it has: ${allowed.join(', ')})` };

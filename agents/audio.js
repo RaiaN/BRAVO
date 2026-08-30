@@ -1,4 +1,4 @@
-// THE AUDIO AGENT (§4) — "voice, score, sound design".
+// THE AUDIO AGENT — "voice, score, sound design".
 //
 // Registered but OFF by default: `speak` is not built, so it holds only free tools and
 // would promise work it cannot do. It exists here so the roster is honest about what the

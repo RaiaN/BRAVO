@@ -1,20 +1,8 @@
-// THE AGENT REGISTRY — the only place that knows which agents exist.
+// THE AGENT REGISTRY — the only file that knows which agents exist.
 //
-// An agent is a MODULE: a closed description of one kind of work, with no knowledge of the
-// turn engine and no way for the engine to know it specifically. Adding an agent is one
-// file plus one `register()` call; the loop never changes. Removing one likewise.
-//
-// A module declares:
-//   id          the thread kind it serves
-//   title, job  what it is, in one line — the router reads `job` to choose between them
-//   tools       its §4 row. The gate refuses anything outside it, so this IS its authority
-//   system()    its system prompt
-//   context()   the live facts it needs this turn (§4 thread memory)
-//   latch()     how a thread of this kind acquires its one artifact (§4)
-//   guards      optional extra output checks, run after the engine's own
-//
-// Enable/disable is real: a disabled agent is not offered to the router and refuses to run
-// if a thread of its kind already exists. Nothing is silently substituted (§8).
+// An agent is a module with no knowledge of the turn engine, and no way for the engine to
+// know it specifically. Adding one is a file plus a line in index.js.
+// The module contract is in docs/ARCHITECTURE.md.
 
 const REQUIRED = ['id', 'title', 'job', 'tools', 'system', 'context'];
 
@@ -74,7 +62,7 @@ export const setEnabled = (id, on) => {
 export const resetOverrides = () => { overrides = {}; };
 
 // ---- lookup ------------------------------------------------------------------------
-// An unknown or disabled kind resolves to NOTHING (§8) — never to a default agent.
+// An unknown or disabled kind resolves to NOTHING — never to a default agent.
 
 export const agentFor = (id) => (id && isEnabled(id) ? AGENTS.get(id) || null : null);
 export const allAgents = () => [...AGENTS.values()];

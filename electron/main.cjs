@@ -2,7 +2,7 @@
 //
 // The window does NOT load a static export — it boots Next.js IN-PROCESS and loads it
 // over 127.0.0.1. That is not a detail: BRAVO's entire model layer is `pages/api/*`
-// (§10), so the app needs a live Node server behind it. A static export would ship the
+//, so the app needs a live Node server behind it. A static export would ship the
 // shell with nothing to talk to.
 //
 // Same approach as the ModelArk starter kit; the differences are BRAVO's macOS chrome,
@@ -17,10 +17,30 @@ const next = require('next');
 
 const isDev = !app.isPackaged;
 
-// The dev server's CA requirement (§10) applies to the packaged app too — its API routes
-// make the same outbound TLS calls. Node reads this lazily, when the root store is first
-// built, which is long after this line runs.
-if (!process.env.NODE_USE_SYSTEM_CA) process.env.NODE_USE_SYSTEM_CA = '1';
+// NODE_USE_SYSTEM_CA applies to the packaged app too — its API routes make the same
+// outbound TLS calls. But Node builds its root certificate store from the ENVIRONMENT at
+// startup, before any of this file runs, so assigning process.env here does nothing at
+// all: the packaged app failed every Ark call with UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+// while appearing to have the variable set.
+//
+// The only way to actually get it is to be launched with it. So: probe once, and if TLS
+// really is intercepted, relaunch with the variable in the environment the child
+// inherits. On a network with an ordinary certificate chain the probe succeeds and
+// nothing restarts.
+const CERT_ERR = /UNABLE_TO_GET_ISSUER_CERT|SELF_SIGNED_CERT|CERT_|unable to (get|verify)/i;
+
+const tlsIsIntercepted = async () => {
+  if (process.env.NODE_USE_SYSTEM_CA) return false;          // already launched with it
+  const base = process.env.MODELARK_API_BASE_URL;
+  if (!base) return false;                                   // nothing to reach anyway
+  try {
+    await fetch(base, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
+    return false;
+  } catch (err) {
+    const code = String(err?.cause?.code || err?.code || err?.message || '');
+    return CERT_ERR.test(code);
+  }
+};
 
 // ---- credentials -----------------------------------------------------------------
 // A distributed .app must not carry anyone's Ark key, so `.env.local` is NOT bundled.
@@ -97,9 +117,9 @@ const createMainWindow = async () => {
   const appDir = app.getAppPath();
 
   // `pages/api/film/skills.js` resolves the library as `process.cwd()/.agents/skills`
-  // (§7: the FOLDER is the source of truth). A launched .app inherits whatever cwd the
+  // (the FOLDER is the source of truth). A launched .app inherits whatever cwd the
   // Finder had — usually `/` — so without this the skills library is silently empty.
-  // The kit is unchanged (§10); the host moves to meet it.
+  // The kit is unchanged; the host moves to meet it.
   try { process.chdir(appDir); } catch { /* fall through — skills will report empty */ }
 
   const port = await findOpenPort(3000);
@@ -121,8 +141,18 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const envFile = loadEnv();
+
+  // loadEnv() must run first — the probe needs MODELARK_API_BASE_URL.
+  if (await tlsIsIntercepted()) {
+    console.warn('[bravo] TLS is intercepted on this network — relaunching with NODE_USE_SYSTEM_CA=1');
+    process.env.NODE_USE_SYSTEM_CA = '1';                    // inherited by the child
+    app.relaunch();
+    app.exit(0);
+    return undefined;
+  }
+
   if (!envFile) {
     // Not fatal: the transport kit's routes accept a per-request apiKey and
     // /api/film/config reports `hasServerKey: false`, so the app runs key-less.

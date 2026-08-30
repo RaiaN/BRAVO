@@ -1,6 +1,5 @@
 // THE STORYBOARD AGENT — its artifact is a storyboard IMAGE: the film drawn as panels,
-// before anything is rendered for real. Not in §4's table; defined here because §5 makes
-// shot creation forking-only and a storyboard is one image, not N shots.
+// before anything is rendered for real. Not in table; defined here because // shot creation forking-only and a storyboard is one image, not N shots.
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';

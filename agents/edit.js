@@ -1,4 +1,4 @@
-// THE EDIT AGENT (§4) — "operate on an existing take".
+// THE EDIT AGENT — "operate on an existing take".
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -13,7 +13,7 @@ export default defineAgent({
 
   // An edit thread ATTACHES to something that already exists; it never creates a shot.
   // With exactly one shot holding takes it attaches there; with several it attaches to
-  // nothing and the agent asks, because picking one would substitute a default (§8).
+  // nothing and the agent asks, because picking one would substitute a default.
   latch: ({ project }) => {
     const withTakes = (project.film.shots || []).filter((s) => s.takes.length);
     return { project, subjectId: withTakes.length === 1 ? withTakes[0].id : null };

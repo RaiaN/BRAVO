@@ -1,23 +1,11 @@
-// THE TURN ENGINE (§9: "loop.js — the turn: plan → tools → report").
+// THE TURN ENGINE.
 //
-// ─────────────────────────────────────────────────────────────────────────────────────
-// RESPONSIBILITY, exactly one: run ONE turn of ONE already-routed thread.
+// Responsibility, exactly one: run one turn of one already-routed thread. It reaches
+// everything through three seams — an agent module, the tool registry, and state access
+// (get/apply) — and imports no agent. See docs/ARCHITECTURE.md.
 //
-// It owns:      the plan→act→observe cycle, the reasoner call and its one retry, parsing,
-//               enforcing the agent's tool row, turning a gated call into an approval
-//               card, budget, thrash detection, and running the output guards.
-// It does NOT:  know which agents exist, what any of them believes, how a thread acquires
-//               a subject, what a tool does, when to route, or what the UI shows.
-//
-// Everything it needs arrives through three seams: an AGENT MODULE (registry.js), a TOOL
-// REGISTRY (tools/index.js), and STATE ACCESS (`get`/`apply`). Adding an agent, a tool or
-// a guard therefore never touches this file — which is the whole point of the split.
-// ─────────────────────────────────────────────────────────────────────────────────────
-//
-// §4 has agents running independently "while you work in another thread", so a turn never
-// holds a snapshot of the project and writes it back — the later writer would erase the
-// other agent's work. It reads live through `get()` and mutates through a serialized
-// `apply()`.
+// Agents run concurrently, so a turn never holds a snapshot of the project and writes it
+// back; the later writer would erase the other agent's work.
 
 import { appendMessage, setThreadStatus, threadById } from '../state/project.js';
 import { mergeChanges } from '../state/merge.js';
@@ -36,10 +24,10 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
   const status = (s) => apply((prev) => setThreadStatus(prev, threadId, s));
 
   const thread0 = threadById(p(), threadId);
-  if (!thread0) return;                                   // unknown id → nothing (§8)
+  if (!thread0) return;                                   // unknown id → nothing
 
   // An unknown or switched-off kind resolves to NOTHING and says which it was — it is
-  // never quietly replaced by another agent (§8).
+  // never quietly replaced by another agent.
   const agent = agentFor(thread0.kind);
   if (!agent) {
     push({ role: 'agent', text: `I cannot run: ${explainMissing(thread0.kind)}.` });
@@ -100,14 +88,14 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
 
         const tool = TOOLS[call.tool];
 
-        // GATED (§6): real money. NOTHING IS SENT FROM AN UNAPPROVED CARD. The call
+        // GATED: real money. NOTHING IS SENT FROM AN UNAPPROVED CARD. The call
         // becomes a card showing the exact prompt and ordered references, and the turn
         // stops so a person can decide.
         if (tool.gated) {
           const t = threadById(p(), threadId);
           const { takesCap, spentTakes } = t.budget;
           if (spentTakes >= takesCap) {
-            // §6: an agent that reaches its cap STOPS and reports. It does not ask to
+            // : an agent that reaches its cap STOPS and reports. It does not ask to
             // continue in a loop.
             push({ role: 'agent', text: `I have used this thread's budget of ${takesCap} render${takesCap === 1 ? '' : 's'}. Raise the cap if you want more.` });
             status('needs-you');

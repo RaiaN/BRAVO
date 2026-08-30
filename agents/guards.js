@@ -1,12 +1,8 @@
-// OUTPUT GUARDS — the checks that run on what an agent SAYS, after its tools have run.
+// OUTPUT GUARDS — checks on what an agent SAYS, after its tools have run.
 //
-// §8: "Every LLM promise needs a code gate — a deterministic check, a retry, a visible
-// report." A guard is that gate as a composable unit: `(report) → correction | null`.
-// The turn engine runs them without knowing what any of them check, and an agent module
-// can add its own.
-//
-// A guard corrects; it never silently rewrites. The agent's words stay in the transcript
-// and the correction sits beneath them, so what happened is legible afterwards.
+// A guard is (report) -> correction | null. The engine runs them without knowing what any
+// of them check. A guard corrects; it never rewrites — the agent's words stay in the
+// transcript with the correction beneath them.
 
 // ONLY claims that work is happening WITHOUT the person. Describing what a card will do
 // once approved ("this will render one take") is honest and must not trip this — a gate

@@ -1,11 +1,8 @@
-// The shot's references, IN ORDER — because position IS the citation number (§3
-// invariant 2). The number is shown first for exactly that reason.
+// The shot's references, IN ORDER — because position IS the citation number (// invariant 2). The number is shown first for exactly that reason.
 export default function RefChips({ refs = [], prefix = '' }) {
   if (!refs.length) return null;
-  return (
-    <div className="row">
-      {refs.map((r) => (
-        <span key={r.n} className="chip">
+  return (<div className="row">
+      {refs.map((r) => (<span key={r.n} className="chip">
           <b className="tnum">{prefix}Image{prefix ? '' : ' '}{r.n}</b>
           {r.label || r.role || 'ref'}
         </span>

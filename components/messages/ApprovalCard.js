@@ -1,7 +1,7 @@
-// THE APPROVAL CARD (§6). A gated call renders THE EXACT PROMPT and THE EXACT ORDERED
+// THE APPROVAL CARD. A gated call renders THE EXACT PROMPT and THE EXACT ORDERED
 // REFERENCES before spending, with approve / edit / cancel.
 //
-// §8: "Show the full prompt before spending." Not a summary, not the first line — the
+// : "Show the full prompt before spending." Not a summary, not the first line — the
 // whole thing, scrollable, exactly as it will be sent.
 import { useState } from 'react';
 import PromptBlock from '../results/PromptBlock';
@@ -22,8 +22,7 @@ export default function ApprovalCard({ message, onApprove, onCancel, busy }) {
     p.generateAudio !== undefined && ['audio', p.generateAudio ? 'on' : 'off'],
   ].filter(Boolean);
 
-  return (
-    <article className="card">
+  return (<article className="card">
       <header>
         <span className="what">{card.tool}</span>
         <span className="est">{card.estimate}</span>
@@ -34,19 +33,16 @@ export default function ApprovalCard({ message, onApprove, onCancel, busy }) {
           {open ? 'hide' : 'show'} the exact prompt · {card.prompt.length.toLocaleString()} chars
         </button>
         {open && <PromptBlock prompt={card.prompt} label={`sent verbatim to ${p.model || 'seedream'}`} />}
-        {card.refs?.length > 0 && (
-          <div className="refs">
+        {card.refs?.length > 0 && (<div className="refs">
             <span className="lbl">references, in order — position is the citation number</span>
             <RefChips refs={card.refs} prefix={card.refPrefix} />
           </div>
         )}
-        {params.length > 0 && (
-          <dl className="params">
+        {params.length > 0 && (<dl className="params">
             {params.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
           </dl>
         )}
-        {p.ratio === null && p.duration === null && (
-          <p className="note">ratio and duration are not sent — an editing task locks both.</p>
+        {p.ratio === null && p.duration === null && (<p className="note">ratio and duration are not sent — an editing task locks both.</p>
         )}
       </div>
 

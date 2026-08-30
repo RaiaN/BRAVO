@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # BRAVO — the one entry point that does not need Node on your PATH.
 #
-# This machine had no Node, so an official build lives at ~/.local/node. §10 also
+# This machine had no Node, so an official build lives at ~/.local/node. also
 # requires NODE_USE_SYSTEM_CA=1 so the server trusts this network's own CA. Both are set
 # here, which is why these work when a bare `npm` does not.
 #

@@ -1,4 +1,4 @@
-// THE BIBLE AGENT (§4) — "make this plate right, keep it consistent".
+// THE BIBLE AGENT — "make this plate right, keep it consistent".
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -37,7 +37,7 @@ export default defineAgent({
 PLATE right, and keep it consistent.
 
 A bible entry is a REFERENCE PLATE — one character, location or prop, rendered once so that
-every shot which cites it draws the same thing. §8: consistency is ATTACHMENT, not
+every shot which cites it draws the same thing. : consistency is ATTACHMENT, not
 description. The plate rides in the request; the shot's prompt cites it and does NOT
 re-describe it.
 

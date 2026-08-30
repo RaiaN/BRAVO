@@ -2,7 +2,7 @@ import { filmRows, projectSpend, STATES, stateOf, threadForSubject, unlatchedThr
 import { useEffect, useState } from 'react';
 import { allAgents, isEnabled, setEnabled } from '../agents';
 
-// THE RAIL (§2) — project name, global links, then two sections: THE FILM (shots in
+// THE RAIL — project name, global links, then two sections: THE FILM (shots in
 // order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
 // thread` at the bottom.
 //
@@ -11,8 +11,7 @@ import { allAgents, isEnabled, setEnabled } from '../agents';
 
 const StateGlyph = ({ state }) => {
   const { glyph, label } = STATES[state] || STATES.empty;
-  return (
-    <span className={`glyph ${state}`} title={label} aria-label={label} role="img">
+  return (<span className={`glyph ${state}`} title={label} aria-label={label} role="img">
       {glyph}
       <style jsx>{`
         .glyph {
@@ -30,8 +29,7 @@ const StateGlyph = ({ state }) => {
   );
 };
 
-const ShotRow = ({ row, thread, state, open, onOpen }) => (
-  <button
+const ShotRow = ({ row, thread, state, open, onOpen }) => (<button
     type="button"
     className={`row${open ? ' open' : ''}${row.depth ? ' forked' : ''}`}
     onClick={() => onOpen(thread?.id || null)}
@@ -59,7 +57,7 @@ const ShotRow = ({ row, thread, state, open, onOpen }) => (
   </button>
 );
 
-// RENDERS IN FLIGHT (§2: the rail is a fleet monitor — `⟳` working, with an ETA).
+// RENDERS IN FLIGHT (the rail is a fleet monitor — `⟳` working, with an ETA).
 // A Seedance take runs for minutes, so an elapsed clock is the honest ETA: it says how
 // long this one has actually been going rather than guessing when it will end.
 const Activity = ({ activity, onOpen }) => {
@@ -76,11 +74,9 @@ const Activity = ({ activity, onOpen }) => {
     return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
   };
 
-  return (
-    <div className="act">
+  return (<div className="act">
       <div className="head">Rendering</div>
-      {activity.map((a) => (
-        <button key={a.id} type="button" className="row" onClick={() => onOpen(a.threadId)}>
+      {activity.map((a) => (<button key={a.id} type="button" className="row" onClick={() => onOpen(a.threadId)}>
           <span className="spin" aria-hidden="true">⟳</span>
           <span className="what">{a.tool} · {a.label || 'a render'}</span>
           <span className="el tnum">{elapsed(a.startedAt)}</span>
@@ -106,8 +102,7 @@ const Activity = ({ activity, onOpen }) => {
   );
 };
 
-const Section = ({ children }) => (
-  <div className="head">
+const Section = ({ children }) => (<div className="head">
     {children}
     <style jsx>{`
       .head {
@@ -126,8 +121,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
   const blank = unlatchedThreads(project);
   const spend = projectSpend(project);
 
-  return (
-    <nav className="rail" aria-label="Films and bible">
+  return (<nav className="rail" aria-label="Films and bible">
       <div className="brand drag">BRAVO</div>
 
       <div className="links">
@@ -141,15 +135,13 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           <span className={`caret${more ? ' down' : ''}`} aria-hidden="true">▾</span>
           <span>More</span>
         </button>
-        {more && (
-          <div className="drawer">
+        {more && (<div className="drawer">
             <div className="pref">
               <span>Agents</span>
               <div className="agents">
                 {allAgents().map((a) => {
                   const on = isEnabled(a.id);
-                  return (
-                    <button
+                  return (<button
                       key={a.id}
                       type="button"
                       className={`ag${on ? ' on' : ''}`}
@@ -166,8 +158,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
             <div className="pref">
               <span>Appearance</span>
               <div className="seg" role="group" aria-label="Appearance">
-                {['system', 'light', 'dark'].map((t) => (
-                  <button
+                {['system', 'light', 'dark'].map((t) => (<button
                     key={t}
                     type="button"
                     className={theme === t ? 'on' : ''}
@@ -187,11 +178,9 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
       <div className="scroll body">
         <Activity activity={(project.activity || []).filter((a) => a.state === 'running')} onOpen={onOpenThread} />
 
-        {blank.length > 0 && (
-          <>
+        {blank.length > 0 && (<>
             <Section>Unrouted</Section>
-            {blank.map((t) => (
-              <button
+            {blank.map((t) => (<button
                 key={t.id}
                 type="button"
                 className={`brow${t.id === openThreadId ? ' open' : ''}`}
@@ -209,8 +198,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         {rows.length === 0 && <p className="empty">No shots yet. Say what you want in a thread.</p>}
         {rows.map((row) => {
           const thread = threadForSubject(project, row.shot.id);
-          return (
-            <ShotRow
+          return (<ShotRow
               key={row.shot.id}
               row={row}
               thread={thread}
@@ -227,8 +215,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           ? <p className="empty">No entries yet. Ask a thread for a reference plate.</p>
           : project.bible.map((entry) => {
             const thread = threadForSubject(project, entry.id);
-            return (
-              <button
+            return (<button
                 key={entry.id}
                 type="button"
                 className={`brow${thread && thread.id === openThreadId ? ' open' : ''}`}
@@ -247,8 +234,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           <span className="icon" aria-hidden="true">+</span>
           <span>New thread</span>
         </button>
-        {spend.takes > 0 && (
-          <p className="spend tnum">{spend.takes} render{spend.takes === 1 ? '' : 's'} this film</p>
+        {spend.takes > 0 && (<p className="spend tnum">{spend.takes} render{spend.takes === 1 ? '' : 's'} this film</p>
         )}
       </div>
 

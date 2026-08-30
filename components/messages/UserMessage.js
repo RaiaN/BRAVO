@@ -7,8 +7,7 @@
 // animation (a hidden tab throttles them to a standstill) degrades to no motion rather
 // than to an empty thread.
 export default function UserMessage({ message, enter }) {
-  return (
-    <article className={`turn${enter ? ' enter' : ''}`} data-role="user">
+  return (<article className={`turn${enter ? ' enter' : ''}`} data-role="user">
       <div className="bubble">{message.text}</div>
       <style jsx>{`
         .turn {

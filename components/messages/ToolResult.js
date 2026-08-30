@@ -1,4 +1,4 @@
-// A tool result, INLINE AND VISUAL (§2). Never a wall of text where a picture is the
+// A tool result, INLINE AND VISUAL. Never a wall of text where a picture is the
 // answer — a film renders as a strip, a prompt as a fenced block, refs as a chip row.
 //
 // It is collapsed to one line by default: the agent's prose is the story, and the tool
@@ -32,8 +32,7 @@ const Body = ({ output }) => {
   if (output.kind === 'take') return <TakePlayer take={output.take} />;
   if (output.kind === 'still') return <StillGrid stills={[output.still]} />;
   if (output.kind === 'prompt') {
-    return (
-      <div className="stack">
+    return (<div className="stack">
         <RefChips refs={output.refs} prefix={output.refPrefix} />
         <PromptBlock prompt={output.prompt} label={`written under ${output.model}`} />
         <p className="gates">gates passed: {output.gatesPassed.join(' · ')}</p>
@@ -45,8 +44,7 @@ const Body = ({ output }) => {
     );
   }
   if (output.kind === 'shot' && output.shot) {
-    return (
-      <div className="stack">
+    return (<div className="stack">
         <RefChips refs={output.shot.refs} />
         <PromptBlock prompt={output.shot.prompt} />
         <style jsx>{`.stack{display:flex;flex-direction:column;gap:8px}`}</style>
@@ -71,7 +69,7 @@ const Body = ({ output }) => {
 export default function ToolResult({ message }) {
   const { name, output, cost } = message.tool;
   const MEDIA = ['take', 'still', 'prompt'];
-  // §2: a picture is the answer. Media opens on arrival; lists stay folded.
+  // : a picture is the answer. Media opens on arrival; lists stay folded.
   const [open, setOpen] = useState(MEDIA.includes(output?.kind));
 
   // An APPROVED card mounts with output still null and fills in when the render lands, so
@@ -83,14 +81,12 @@ export default function ToolResult({ message }) {
   const failed = output?.kind === 'error';
   const hasBody = ['film', 'shot', 'look', 'prompt', 'take', 'still'].includes(output?.kind);
 
-  return (
-    <article className={`tool${failed ? ' failed' : ''}`} data-role="tool">
+  return (<article className={`tool${failed ? ' failed' : ''}`} data-role="tool">
       <button type="button" className="line" onClick={() => hasBody && setOpen((v) => !v)} disabled={!hasBody} aria-expanded={hasBody ? open : undefined}>
         <span className="dot" aria-hidden="true">{failed ? '⚠' : '·'}</span>
         <span className="name">{name}</span>
         <span className="sum">{summarise(name, output)}</span>
-        {cost > 0 && (
-          <span className="cost tnum">
+        {cost > 0 && (<span className="cost tnum">
             {cost} {TOOLS[name]?.gated ? `render${cost === 1 ? '' : 's'}` : `call${cost === 1 ? '' : 's'}`}
           </span>
         )}

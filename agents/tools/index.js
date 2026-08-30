@@ -1,17 +1,8 @@
-// THE TOOLS (§6).
+// THE TOOLS. Uniform contract: { name, input } -> { output, cost }. Every result becomes
+// a message rendered inline.
 //
-// Uniform contract: `{ name, input } → { output, cost }`. Every result becomes a Message
-// with `role: 'tool'`, rendered inline and visual (§2) — never a wall of text where a
-// picture is the answer.
-//
-// These four are FREE: they run without asking. Metered (`compose`, `direct`) and gated
-// (`still`, `shoot`, `edit`, `extend`, `speak`) tools arrive in later phases and are the
-// reason `cost` is in the contract from the start.
-//
-// Each tool is `{ name, gated, describe, validate, run }`.
-//   validate(input) → null when the input is usable, else the reason it is not.
-//                     This is a §8 code gate: it runs before anything is mutated.
-//   run({ input, project, thread }) → { project, output, cost }
+// Each tool is { name, gated, describe, validate, run }. validate() runs before anything
+// is mutated. Free tools run without asking; gated ones go through an approval card.
 
 import {
   bibleEntryById, chooseTake, filmRows, insertShot, makeBibleEntry, moveShot,
@@ -76,9 +67,9 @@ const read = {
 
 // ---- write -----------------------------------------------------------------------
 
-// The fields a shot agent may set directly. `prompt` is NOT here: §3 invariant 1 makes it
-// the final prompt and §6 gives it its own tool (`compose`/`direct`) bound to the skill.
-// Letting `write` set it would be exactly the unskilled prompt-authoring §7 forbids.
+// The fields a shot agent may set directly. `prompt` is NOT here: it
+// the final prompt and it its own tool (`compose`/`direct`) bound to the skill.
+// Letting `write` set it would be exactly the unskilled prompt-authoring forbids.
 const WRITABLE = ['title', 'model', 'duration', 'resolution', 'ratio', 'seed', 'generateAudio'];
 const SLOTS = Object.keys(ROOT_CONFIG.models);
 
@@ -95,7 +86,7 @@ const write = {
     if (unknown.length) return `write: cannot set ${unknown.join(', ')} — writable fields are ${allowed.join(', ')}`;
     // THE SLOT MUST BE A REAL SLOT. Without this an agent can write model:"storyboard",
     // which is accepted silently and then refuses to compose because nothing is bound to
-    // a slot that does not exist. §8: an unknown id resolves to nothing — so refuse it
+    // a slot that does not exist. : an unknown id resolves to nothing — so refuse it
     // here, where the reason is still legible.
     if (input.model !== undefined && !SLOTS.includes(input.model)) {
       return `write: "${input.model}" is not a model slot. The slots are: ${SLOTS.join(', ')}`;
@@ -177,9 +168,9 @@ const choose = {
   },
 };
 
-// ---- tag (§6 free) -----------------------------------------------------------------
+// ---- tag (free) -----------------------------------------------------------------
 // Files a rendered plate into the bible so shots can cite it. Consistency is attachment
-// (§8): what `tag` records is what will RIDE in later requests.
+//: what `tag` records is what will RIDE in later requests.
 
 const tag = {
   name: 'tag',
@@ -193,7 +184,7 @@ const tag = {
   },
   run: ({ input, project, thread }) => {
     // Prefer the plate this thread just rendered over a url the model retyped from
-    // memory — a mistyped url is a plate that silently never rides (§8).
+    // memory — a mistyped url is a plate that silently never rides.
     const subject = thread?.kind === 'bible' ? bibleEntryById(project, thread.subjectId) : null;
     const shot = thread?.subjectId ? shotById(project, thread.subjectId) : null;
     const lastStill = (shot?.stills || [])[(shot?.stills || []).length - 1];
@@ -222,7 +213,7 @@ const tag = {
 
 export const TOOLS = { read, write, order, choose, compose, direct, tag, ...GATED };
 
-// §4's rows. An agent can only reach the tools its kind holds; the gate enforces it.
+// rows. An agent can only reach the tools its kind holds; the gate enforces it.
 export const TOOLS_BY_KIND = {
   shot:       ['read', 'write', 'order', 'choose', 'compose', 'direct', 'still', 'shoot'],
   edit:       ['read', 'choose', 'direct', 'edit', 'shoot'],

@@ -4,7 +4,7 @@ import { bibleEntryById, filmRows, shotById } from '../../state/project.js';
 
 // Resolve what the agent called a shot. Accepts the number a person says out loud
 // ("shot 3"), the `03b` label a fork wears, or a stable id. Anything else resolves to
-// NOTHING (§8) — never "the shot we were just looking at".
+// NOTHING — never "the shot we were just looking at".
 export const resolveShot = (project, ref, thread) => {
   if (ref === undefined || ref === null || ref === '') {
     return thread?.subjectId ? shotById(project, thread.subjectId) : null;

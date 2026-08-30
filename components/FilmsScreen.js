@@ -1,4 +1,4 @@
-// THE FILMS SCREEN (§2's other global link). §3 persists as JSON per project, so more than
+// THE FILMS SCREEN (other global link). persists as JSON per project, so more than
 // one film can exist; this is where you move between them.
 import { deleteProject, listProjects } from '../state/project';
 
@@ -15,8 +15,7 @@ const when = (iso) => {
 export default function FilmsScreen({ currentId, onOpen, onNew, onClose, onChanged }) {
   const films = listProjects();
 
-  return (
-    <main className="screen">
+  return (<main className="screen">
       <header className="head drag">
         <h1>Films</h1>
         <button type="button" className="close" onClick={onClose}>done</button>
@@ -26,8 +25,7 @@ export default function FilmsScreen({ currentId, onOpen, onNew, onClose, onChang
         <div className="measure">
           {films.length === 0 && <p className="empty">No films yet.</p>}
 
-          {films.map((f) => (
-            <div key={f.id} className={`film${f.id === currentId ? ' current' : ''}`}>
+          {films.map((f) => (<div key={f.id} className={`film${f.id === currentId ? ' current' : ''}`}>
               <button type="button" className="open" onClick={() => onOpen(f.id)}>
                 <span className="title">{f.title}</span>
                 <span className="meta">
@@ -38,8 +36,7 @@ export default function FilmsScreen({ currentId, onOpen, onNew, onClose, onChang
               </button>
               {f.id === currentId
                 ? <span className="badge">open</span>
-                : (
-                  <button
+                : (<button
                     type="button"
                     className="danger"
                     onClick={() => {

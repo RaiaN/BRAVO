@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "plate-pe": {
+      "source": "authored for BRAVO",
+      "sourceType": "bravo",
+      "note": "NOT a vendor document. The Seedream slots had nothing bound, and BRAVO refuses to compose for an unbound slot. Replace with the official Seedream spec when one exists.",
+      "bytes": 3555,
+      "sha256": "8e31e41d31aaf109ac0a7d1c43bb426677a9a6ce70d8b3f75c6135d678061904"
+    },
+    "sd20-pe": {
+      "source": "arkdocs-en.tos-ap-southeast-1.volces.com",
+      "sourceType": "vendor",
+      "note": "Official Seedance 2.0 prompt spec. Outranks any local guidance.",
+      "bytes": 41921,
+      "sha256": "ec94b9bdb5cdd31f4f17dfc566e5c47573886fd95da4bcd4634997e35122f00f"
+    },
+    "sd25-pe": {
+      "source": "arkdocs-en.tos-ap-southeast-1.volces.com",
+      "sourceType": "vendor",
+      "note": "Official Seedance 2.5 prompt spec. Outranks any local guidance.",
+      "bytes": 92532,
+      "sha256": "ec77264f589b0ac0b5620964f47cc046c292d9a14706c234067645dfd3547601"
+    },
+    "seedance-camera": {
+      "source": "ModelArkStarterKit/skills/seedance/camera.md",
+      "sourceType": "starter-kit",
+      "note": "Methodology, not a vendor spec. Rides alongside sd25-pe/sd20-pe.",
+      "bytes": 3325,
+      "sha256": "df7b65ef3fcb5d1b450eabe6995244ccb6224c63185e9392096b3670b2040d90"
+    },
+    "seedance-compose": {
+      "source": "ModelArkStarterKit/skills/seedance/compose.md",
+      "sourceType": "starter-kit",
+      "note": "UNBOUND ON PURPOSE: returns JSON and assumes a caller-side compiler, which BRAVO has no place for.",
+      "bytes": 5200,
+      "sha256": "eaf3fcb64f18f008a1ce0223b44e42a9c8588d1be70b25eb98b9ae6c1f2e4655"
+    },
+    "seedance-direct": {
+      "source": "ModelArkStarterKit/skills/seedance/direct.md",
+      "sourceType": "starter-kit",
+      "note": "UNBOUND ON PURPOSE: same JSON/compiler contract as seedance-compose.",
+      "bytes": 3545,
+      "sha256": "dab447737803a03dbef0e0d1e108b92098f1930672c83162d728267349b33a27"
+    }
+  }
+}

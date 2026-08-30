@@ -5,7 +5,7 @@ import ToolResult from './messages/ToolResult';
 import ApprovalCard from './messages/ApprovalCard';
 import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
 
-// THE THREAD PANE (§2) — the transcript, newest at the bottom, composer pinned below.
+// THE THREAD PANE — the transcript, newest at the bottom, composer pinned below.
 // No tabs inside the pane, no inspector panels, no floating windows.
 //
 // SELECTION IS IMPLICIT: this thread is the subject of everything typed here. There is
@@ -54,8 +54,7 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
     }
   };
 
-  return (
-    <div className="dock">
+  return (<div className="dock">
       <div className="composer">
         <textarea
           ref={ref}
@@ -130,12 +129,10 @@ function Title({ label, title, onRename }) {
 
   const commit = () => { setEditing(false); if (draft.trim() !== title) onRename(draft.trim()); };
 
-  return (
-    <h1 className="title">
+  return (<h1 className="title">
       <span className="n tnum">{label}</span>
       <span className="dot" aria-hidden="true">·</span>
-      {editing ? (
-        <input
+      {editing ? (<input
           ref={ref}
           value={draft}
           placeholder="name this shot"
@@ -147,8 +144,7 @@ function Title({ label, title, onRename }) {
           }}
           aria-label="Shot title"
         />
-      ) : (
-        <button type="button" className="name" onClick={() => setEditing(true)} title="Rename this shot">
+      ) : (<button type="button" className="name" onClick={() => setEditing(true)} title="Rename this shot">
           {title || <span className="none">—</span>}
         </button>
       )}
@@ -209,8 +205,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
   }, [thread?.id]);
 
   if (!thread) {
-    return (
-      <main className="pane">
+    return (<main className="pane">
         <p className="void">No thread is open.</p>
         <style jsx>{`
           .pane { flex: 1; display: grid; place-items: center; background: var(--canvas); }
@@ -231,7 +226,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
     restored.current = { threadId: thread.id, ids: new Set(messages.map((m) => m.id)) };
   }
 
-  // §8 forbids substituting a default: the label comes from this thread's own subject,
+  // substituting a default: the label comes from this thread's own subject,
   // and a subject the film does not hold yields no number rather than someone else's.
   const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
   const label = !thread.kind
@@ -240,12 +235,11 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
 
   const state = stateOf(project, thread);
   const live = activeFor(project, thread.id);
-  // Only THIS thread's own run blocks its composer. §4 lets other agents work meanwhile,
+  // Only THIS thread's own run blocks its composer. lets other agents work meanwhile,
   // and a global lock would make one busy agent freeze the whole studio.
   const busy = !!running || live.length > 0;
 
-  return (
-    <main className="pane">
+  return (<main className="pane">
       <header className="head drag">
         {thread.kind
           ? <Title label={label} title={subject?.title || ''} onRename={onRename} />
@@ -257,8 +251,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
 
       <div className="scroll transcript" ref={scroller}>
         <div className="measure">
-          {messages.length === 0 ? (
-            <div className="opening">
+          {messages.length === 0 ? (<div className="opening">
               <p className="lede">
                 {thread.kind
                   ? (subject?.title ? `${label} · ${subject.title}` : `${label} has no title yet.`)
@@ -276,7 +269,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
             // message — so when nobody is looking the turn simply appears.
             const enter = !restored.current.ids.has(m.id) && watching;
             if (m.role === 'tool') {
-              // An unapproved card is a decision, not a result (§6).
+              // An unapproved card is a decision, not a result.
               if (m.tool?.card && !m.tool.approved && !m.tool.output) {
                 return <ApprovalCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />;
               }
@@ -287,13 +280,11 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
               : <AgentMessage key={m.id} message={m} enter={enter} />;
           })}
 
-          {live.length > 0 ? (
-            <p className="working">
+          {live.length > 0 ? (<p className="working">
               <span className="spin" aria-hidden="true">⟳</span>
               {live.map((a) => `${a.tool} running at Seedance — minutes, not seconds. It keeps going if you close this tab.`).join(' ')}
             </p>
-          ) : busy && (
-            <p className="working"><span className="spin" aria-hidden="true">⟳</span> working…</p>
+          ) : busy && (<p className="working"><span className="spin" aria-hidden="true">⟳</span> working…</p>
           )}
         </div>
       </div>

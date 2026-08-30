@@ -1,6 +1,5 @@
-// THREAD MEMORY (§4): "the transcript up to a cap, then a rolling summary of decisions
-// beneath that." Lifted out of the turn engine because it is a policy about what an agent
-// remembers, not a step in running a turn — and a different agent may want a different one.
+// THREAD MEMORY: the recent transcript, then a rolling summary of what came before.
+// A policy about what an agent remembers, not a step in running a turn.
 
 export const DEFAULT_CAP = 24;
 

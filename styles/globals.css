@@ -1,6 +1,6 @@
 /* BRAVO — the shell.
  *
- * §2 replicates the Claude web layout: a rail of threads on the left, the open thread's
+ * replicates the Claude web layout: a rail of threads on the left, the open thread's
  * transcript on the right, composer pinned below. The chrome underneath it is macOS: the
  * system font stack, a draggable title strip, overlay scrollbars, and the light/dark
  * split following the OS.
@@ -27,7 +27,7 @@
   --accent-wash:   rgba(201, 100, 66, 0.10);
   --bubble:        #ebe9e1;
 
-  /* The rail's state glyphs (§2). Colour carries the same information as the shape, so
+  /* The rail's state glyphs. Colour carries the same information as the shape, so
      the row reads at a glance without decoding the character. */
   --state-empty:   #b5b3ab;
   --state-working: #b7791f;

@@ -1,22 +1,18 @@
-// compose · direct — METERED (§6): one reasoner call, no approval, no money.
+// compose / direct — one reasoner call each, no approval, no money.
 //
-// This is where the SKILL is leveraged. §7: the vendor's prompt spec for the shot's bound
-// model slot rides VERBATIM in the system prompt, and `requireSkillLine` THROWS when the
-// slot is unbound — there is no fallback and no house style. A slot without a spec refuses
-// to compose.
-//
-// What comes back IS the shot's prompt (§3 invariant 1). Nothing wraps it, nothing appends
-// to it at send time, and no parameter is ever written into it (§8).
+// This is where the skill is leveraged: the vendor's spec for the shot's bound model slot
+// rides verbatim in the system prompt, and requireSkillLine THROWS for an unbound slot.
+// What comes back IS the prompt. Nothing wraps it, and no parameter is written into it.
 
 import { setBibleFields, setShotFields } from '../../state/project.js';
 import { defaultImageModelKey, imageTraits, videoTraits } from '../../utils/film/suiteConfig.js';
 import { resolveSubject } from './shared.js';
 
-// ---- the code gates (§8) ----------------------------------------------------------
+// ---- the code gates ----------------------------------------------------------
 // "Every LLM promise needs a code gate — a deterministic check, a retry, a visible
 // report. Minimum: citation numbers within range, dialogue lines preserved."
 
-// Duration, ratio and resolution are PARAMETERS, never prompt text (§8). A model told
+// Duration, ratio and resolution are PARAMETERS, never prompt text. A model told
 // "a 6 second shot" renders the words, not the length.
 const PARAMS_RE = /\b(\d+\s*(seconds?|secs?|s)\b|\d+:\d+\b|1080p|720p|480p|4K)\b/i;
 
@@ -91,14 +87,14 @@ const runCompose = async ({ input, project, thread, ctx, mode }) => {
   }
   // A plate renders on an IMAGE slot; a shot on a video slot. The slot is chosen from the
   // env-configured preference, recorded on the subject, and visible — not substituted at
-  // send time (§8).
+  // send time.
   let modelKey = shot.model;
   if (!modelKey && shot.kind === 'bible') modelKey = defaultImageModelKey();
   if (!modelKey) {
     return { project, cost: 0, output: { kind: 'error', error: 'this shot has no model slot set. Use write to set "model" first — the skill is bound to the slot.' } };
   }
 
-  // §7: unbound means REFUSED. This throws, and the refusal is the correct outcome.
+  // : unbound means REFUSED. This throws, and the refusal is the correct outcome.
   let skillLine;
   try {
     skillLine = await ctx.requireSkillLine(modelKey);
@@ -123,7 +119,7 @@ const runCompose = async ({ input, project, thread, ctx, mode }) => {
   let prompt = '';
   let problems = [];
 
-  // One retry, quoting the exact violation. §8 wants a check, a retry and a report.
+  // One retry, quoting the exact violation. a check, a retry and a report.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const ask = attempt === 0
       ? brief(project, shot, note)

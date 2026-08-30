@@ -1,15 +1,8 @@
-// still · shoot · edit — GATED (§6). Real money. Approved before anything is sent.
+// still / shoot / edit — GATED. Real money, approved first.
 //
-// The loop never runs these directly: it turns the call into an APPROVAL CARD showing the
-// exact prompt and the exact ordered references (§6), and only an explicit approval runs
-// them. `prepare()` builds what the card shows; `run()` is what approval executes.
-//
-// §8, load-bearing here:
-// - THE PROMPT IS THE PROMPT. `animate({ motion: shot.prompt })` with the cinematography
-//   fields left unset makes the kit's buildAnimatePrompt return `motion` VERBATIM. Any
-//   other call shape prepends "Camera move: …" and assembles at send time.
-// - Duration, ratio and resolution ride as PARAMETERS, never text.
-// - promptUsed is recorded at send time (§3 invariant 3) — never reconstructed later.
+// The engine never runs these directly: it turns the call into an approval card showing
+// the exact prompt and ordered references, and only approval executes them.
+// prepare() builds what the card shows; run() is what approval executes.
 
 import { newId, setBibleFields, setShotFields, shotById } from '../../state/project.js';
 import { animate } from '../../utils/film/core/operations.js';
@@ -59,7 +52,7 @@ export const prepare = (name, { input, project, thread }) => {
         tool: 'still',
         shotId: shot.id,
         title: shot.title,
-        prompt: shot.prompt,                       // shown in full BEFORE spending (§8)
+        prompt: shot.prompt,                       // shown in full BEFORE spending
         refs: shot.refs.map((r, i) => ({ n: i + 1, label: r.label, role: r.role, url: r.url })),
         refPrefix: '',
         params: { size: input.size || '2K' },
@@ -130,7 +123,7 @@ export const still = {
   run: async ({ card, project, ctx }) => {
     const started = Date.now();
     const { url, cacheUrl } = await ctx.client.generateImage({
-      prompt: card.prompt,                          // verbatim — no assembly (§8)
+      prompt: card.prompt,                          // verbatim — no assembly
       referenceImages: card.refs.map((r) => r.url).filter(Boolean),
       size: card.params.size,
     });
@@ -138,15 +131,15 @@ export const still = {
       id: newId('still'),
       // The raw generation url EXPIRES (~24h). cacheUrl is the media store's copy — disk
       // plus the TOS mirror — so a still outlives the request that made it. A take whose
-      // video is gone cannot explain itself, whatever promptUsed says (§3 invariant 3).
+      // video is gone cannot explain itself, whatever promptUsed says.
       url: cacheUrl || url,
       sourceUrl: url,
       createdAt: new Date().toISOString(),
       ms: Date.now() - started,
-      promptUsed: card.prompt,                      // §3 invariant 3
+      promptUsed: card.prompt,                      // the invariant
     };
     // A plate lands on the bible entry (and becomes its plateUrl, which is what RIDES in
-    // later requests — §8: consistency is attachment). A shot's still lands on the shot.
+    // later requests — : consistency is attachment). A shot's still lands on the shot.
     const next = card.subjectKind === 'bible'
       ? setBibleFields(project, card.shotId, {
         stills: [...(project.bible.find((b) => b.id === card.shotId)?.stills || []), still_],
@@ -198,7 +191,7 @@ export const shoot = {
       posterUrl: lastFrameCacheUrl || lastFrameUrl || null,
       createdAt: new Date().toISOString(),
       ms: Date.now() - started,
-      promptUsed: prompt,                           // what was ACTUALLY sent (§3)
+      promptUsed: prompt,                           // what was ACTUALLY sent
       model: p.model,
       seed: p.seed,
       resolution: p.resolution,

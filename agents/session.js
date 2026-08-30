@@ -1,11 +1,8 @@
-// THE SESSION — orchestration around the turn engine.
+// THE SESSION — decides when a turn runs, and what must happen first: routing a blank
+// thread, latching it to its artifact, approving or cancelling a gated card.
 //
-// RESPONSIBILITY: decide WHEN a turn runs and what has to happen first. Routing a unisex
-// thread, latching it to its artifact, approving a gated card, cancelling one. The engine
-// (loop.js) runs a turn; this decides that a turn should run at all.
-//
-// Kept apart because routing is a policy about the studio, not a step in a turn — and
-// because a thread that never routes must never reach the engine.
+// Separate from the engine because routing is a policy about the studio, not a step
+// inside a turn — and a thread that never routes must never reach the engine.
 
 import {
   addActivity, appendMessage, latchThread, newId, removeActivity,
@@ -18,7 +15,7 @@ import { route } from './router.js';
 import { runTurn } from './loop.js';
 import { defaultImageModelKey, defaultVideoModelKey } from '../utils/film/suiteConfig.js';
 
-// Route a unisex thread and latch it (§4: from here it owns exactly one artifact).
+// Route a unisex thread and latch it (from here it owns exactly one artifact).
 // Returns true when the thread is ready for a turn.
 const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
   const thread = threadById(get(), threadId);

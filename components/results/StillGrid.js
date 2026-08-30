@@ -3,10 +3,8 @@
 export default function StillGrid({ stills = [] }) {
   const list = stills.filter((s) => s?.url);
   if (!list.length) return null;
-  return (
-    <div className="grid">
-      {list.map((s) => (
-        <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="cell">
+  return (<div className="grid">
+      {list.map((s) => (<a key={s.id} href={s.url} target="_blank" rel="noreferrer" className="cell">
           <img src={s.url} alt={s.promptUsed?.slice(0, 120) || 'still'} loading="lazy" />
         </a>
       ))}

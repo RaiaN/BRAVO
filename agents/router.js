@@ -1,10 +1,10 @@
 // THE ROUTER — what turns a unisex thread into an agent.
 //
 // A thread is born with no kind. The first message decides which agent it belongs to, and
-// the kind then LATCHES (§4: a thread owns exactly one artifact). This runs once per
+// the kind then LATCHES (a thread owns exactly one artifact). This runs once per
 // thread, ever.
 //
-// It is an LLM promise, so §8 applies in full: the answer is checked against the known
+// It is an LLM promise, so applies in full: the answer is checked against the known
 // kinds, and anything else becomes a QUESTION rather than a guess. There is no default
 // kind — "never substitute a default" covers routing too.
 
@@ -64,8 +64,7 @@ export const route = async ({ client, message, modelId = null, choices = [] }) =
 };
 
 // A title is a rail label, not a sentence — an over-long one truncates mid-word in every
-// row that shows it. The prompt asks for five words; this is the gate that means it (§8:
-// an LLM promise needs a deterministic check, not a hope).
+// row that shows it. The prompt asks for five words; this is the gate that means it (// an LLM promise needs a deterministic check, not a hope).
 export const shortTitle = (raw) => {
   // Trim BEFORE stripping quotes: anchored ^ and $ never reach them through padding, so
   // `  "The Collision."  ` came back still wearing its quotes.

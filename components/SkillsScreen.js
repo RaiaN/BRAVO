@@ -1,8 +1,8 @@
-// THE SKILLS SCREEN (§7). Lists every skill: token weight, model binding, a full-text
+// THE SKILLS SCREEN. Lists every skill: token weight, model binding, a full-text
 // editor, reset to disk, add-your-own. Dropping a folder into `.agents/skills/` makes it
 // appear here with no code change.
 //
-// This is not decoration. §7 makes the bound spec outrank everything and refuses to
+// This is not decoration. the bound spec outrank everything and refuses to
 // compose for an unbound slot, so the binding shown here decides whether a slot works at
 // all — and which document rides, verbatim, in every call that model makes.
 
@@ -31,14 +31,13 @@ export default function SkillsScreen({ onClose }) {
   const open = useMemo(() => skills.find((s) => s.id === openId) || null, [skills, openId]);
   const refresh = () => setTick((t) => t + 1);
 
-  // Which slots have nothing bound — the ones that will refuse to compose (§7).
+  // Which slots have nothing bound — the ones that will refuse to compose.
   const unbound = SLOTS.filter((slot) => !skills.some((s) => (s.models || []).includes(slot) && String(s.text || '').trim()));
 
   const startEdit = (s) => { setOpenId(s.id); setDraft(s.text || ''); };
   const save = () => { setSkillText(open.id, draft); refresh(); };
 
-  return (
-    <main className="screen">
+  return (<main className="screen">
       <header className="head drag">
         <h1>Skills</h1>
         <button type="button" className="close" onClick={onClose}>done</button>
@@ -52,14 +51,12 @@ export default function SkillsScreen({ onClose }) {
             refuses to compose — there is no fallback and no house style.
           </p>
 
-          {unbound.length > 0 && (
-            <p className="warn">
+          {unbound.length > 0 && (<p className="warn">
               Unbound: {unbound.join(', ')}. Any shot on those slots will refuse to compose.
             </p>
           )}
 
-          {skills.map((s) => (
-            <section key={s.id} className={`skill${openId === s.id ? ' open' : ''}`}>
+          {skills.map((s) => (<section key={s.id} className={`skill${openId === s.id ? ' open' : ''}`}>
               <div className="row">
                 <button type="button" className="name" onClick={() => (openId === s.id ? setOpenId(null) : startEdit(s))}>
                   <span className="id">{s.name || s.id}</span>
@@ -70,11 +67,9 @@ export default function SkillsScreen({ onClose }) {
                   {(s.models || []).length === 0 && <span className="badge unbound">unbound</span>}
                 </button>
                 <div className="acts">
-                  {s.edited && s.source === 'disk' && (
-                    <button type="button" onClick={() => { resetSkill(s.id); setOpenId(null); refresh(); }}>reset to disk</button>
+                  {s.edited && s.source === 'disk' && (<button type="button" onClick={() => { resetSkill(s.id); setOpenId(null); refresh(); }}>reset to disk</button>
                   )}
-                  {s.source === 'custom' && (
-                    <button type="button" className="danger" onClick={() => { removeSkill(s.id); setOpenId(null); refresh(); }}>remove</button>
+                  {s.source === 'custom' && (<button type="button" className="danger" onClick={() => { removeSkill(s.id); setOpenId(null); refresh(); }}>remove</button>
                   )}
                 </div>
               </div>
@@ -85,8 +80,7 @@ export default function SkillsScreen({ onClose }) {
               <div className="binds">
                 {SLOTS.map((slot) => {
                   const on = (s.models || []).includes(slot);
-                  return (
-                    <button
+                  return (<button
                       key={slot}
                       type="button"
                       className={`bind${on ? ' on' : ''}`}
@@ -103,8 +97,7 @@ export default function SkillsScreen({ onClose }) {
                 })}
               </div>
 
-              {openId === s.id && (
-                <div className="editor">
+              {openId === s.id && (<div className="editor">
                   <textarea value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false} />
                   <div className="editacts">
                     <button type="button" className="save" onClick={save}>save</button>
