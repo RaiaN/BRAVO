@@ -39,4 +39,43 @@ export const cases = [
     expect: { oneEntryOnly: true },
     why: 'a thread owns one artifact; the second subject needs its own thread, and the agent must say so rather than cram both in',
   },
+  {
+    name: 'refine · a note revises without forgetting',
+    entry: {
+      name: 'the keeper', role: 'character', model: 'seedream',
+      plateUrl: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg',
+      stills: [{ id: 'st1', url: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg', promptUsed: 'x', createdAt: '2026-01-01T00:00:00Z' }],
+      prompt: 'An elderly lighthouse keeper, thick white beard, dark green oilskins, standing square to the camera against a plain grey background, even flat light.',
+    },
+    input: 'good — now make the light warmer, late golden hour',
+    expect: { tools: ['direct'], gatedNotSpent: true, promptStillContains: ['beard', 'oilskins'] },
+    why: 'refinement preserves what stands; a full recompose forgets earlier notes',
+  },
+  {
+    name: 'refine · keeping the look carries the plate forward',
+    entry: {
+      name: 'the keeper', role: 'character', model: 'seedream',
+      plateUrl: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg',
+      stills: [{ id: 'st1', url: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg', promptUsed: 'x', createdAt: '2026-01-01T00:00:00Z' }],
+      prompt: 'An elderly lighthouse keeper, thick white beard, dark green oilskins, standing square to the camera against a plain grey background, even flat light.',
+    },
+    input: 'keep his face exactly as it is, but put him in a heavier storm coat',
+    expect: { attachesCurrentPlate: true, gatedNotSpent: true },
+    why: 'text alone re-rolls the likeness; the current plate must ride as a reference',
+  },
+  {
+    name: 'refine · reverting to an earlier render costs nothing',
+    entry: {
+      name: 'the keeper', role: 'character', model: 'seedream',
+      plateUrl: '/api/film/media?key=6b7fa434f92a8b80aab02d9bf1a12e49.png',
+      stills: [
+        { id: 'st1', url: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg', promptUsed: 'x', createdAt: '2026-01-01T00:00:00Z' },
+        { id: 'st2', url: '/api/film/media?key=6b7fa434f92a8b80aab02d9bf1a12e49.png', promptUsed: 'y', createdAt: '2026-01-02T00:00:00Z' },
+      ],
+      prompt: 'An elderly lighthouse keeper.',
+    },
+    input: 'the first render was better — go back to that one as the plate',
+    expect: { noSpend: true, plateBecomes: '/api/film/media?key=ff85e897fa6d13e61bc85c665dd28417.jpg' },
+    why: 'the history is data; preferring an earlier render is a tag, never a re-render',
+  },
 ];

@@ -227,7 +227,7 @@ const cite = {
 const attach = {
   name: 'attach',
   gated: false,
-  describe: 'attach — { "url": "<an uploaded image url>", "label": "" } adds an uploaded image as an ordered reference for this entry\'s plate renders; { "remove": <position> } detaches one.',
+  describe: 'attach — { "url": "<an image uploaded or rendered in this thread>", "label": "" } adds it as an ordered reference for the next plate render; { "remove": <position> } detaches one.',
   validate: (input) => {
     if (input.url === undefined && input.remove === undefined) return 'attach: needs the "url" of an uploaded image, or a "remove" position';
     return null;
@@ -247,11 +247,12 @@ const attach = {
     }
 
     const uploaded = thread.messages.find((m) => m.asset && m.asset.url === input.url);
-    if (!uploaded) return { project, cost: 0, output: { kind: 'error', error: `attach: ${JSON.stringify(input.url)} was not uploaded in this thread` } };
+    const rendered = input.url === entry.plateUrl || (entry.stills || []).some((st) => st.url === input.url);
+    if (!uploaded && !rendered) return { project, cost: 0, output: { kind: 'error', error: `attach: ${JSON.stringify(input.url)} was not uploaded or rendered in this thread` } };
     if (refs.some((r) => r.url === input.url)) {
       return { project, cost: 0, output: { kind: 'error', error: `attach: that image is already reference ${refs.findIndex((r) => r.url === input.url) + 1}` } };
     }
-    const ref = { id: newId('ref'), kind: 'image', url: input.url, assetId: uploaded.asset.assetId || null, label: String(input.label || uploaded.asset.name || 'upload'), role: 'frame', bibleEntryId: null };
+    const ref = { id: newId('ref'), kind: 'image', url: input.url, assetId: uploaded?.asset?.assetId || (rendered ? entry.assetId : null) || null, label: String(input.label || uploaded?.asset?.name || (rendered ? 'current plate' : 'upload')), role: 'frame', bibleEntryId: null };
     const next = setBibleFields(project, entry.id, { refs: [...refs, ref] });
     return { project: next, cost: 0, output: { kind: 'plate', entry: bibleEntryById(next, entry.id), refs: [...refs, ref].map((r, i) => ({ n: i + 1, label: r.label })) } };
   },
@@ -263,7 +264,7 @@ export const TOOLS_BY_KIND = {
   shot:       ['read', 'write', 'order', 'choose', 'cite', 'compose', 'direct', 'still', 'shoot'],
   edit:       ['read', 'choose', 'direct', 'edit', 'shoot'],
   storyboard: ['read', 'write', 'order', 'cite', 'compose', 'still'],
-  bible:      ['read', 'write', 'attach', 'compose', 'still', 'tag'],
+  bible:      ['read', 'write', 'attach', 'compose', 'direct', 'still', 'tag'],
   audio:      ['read', 'write'],
 };
 

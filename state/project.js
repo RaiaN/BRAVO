@@ -62,7 +62,7 @@ export const makeThread = (fields = {}) => ({
   messages: [],
   status: 'idle',
   draft: '',
-  budget: { takesCap: 4, spentTakes: 0 },
+  budget: { takesCap: 999, spentTakes: 0 },
   ...fields,
 });
 

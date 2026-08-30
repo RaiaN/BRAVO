@@ -114,7 +114,7 @@ const runComposeCase = async (client, c) => {
 
 const runBibleCase = async (client, c) => {
   let p = makeProject();
-  const entry = makeBibleEntry({ name: '', role: 'character' });
+  const entry = makeBibleEntry({ name: '', role: 'character', ...(c.entry || {}) });
   p = touch({ ...p, bible: [entry] });
   const threadId = p.threads[0].id;
   p = latchThread(p, threadId, 'bible', { subjectId: entry.id, title: '' }).project;
@@ -148,6 +148,18 @@ const runBibleCase = async (client, c) => {
     if (wrong.length) fails.push(`"${wrong[0].tool.name}" succeeded on input that must be refused`);
   }
   if (c.expect.oneEntryOnly && p.bible.length !== 1) fails.push(`bible now holds ${p.bible.length} entries; a thread owns one artifact`);
+  if (c.expect.attachesCurrentPlate) {
+    const e = p.bible[0];
+    if (!(e.refs || []).some((r) => r.url === (c.entry || {}).plateUrl)) fails.push('the current plate was not attached as a reference — the likeness will re-roll');
+  }
+  if (c.expect.plateBecomes) {
+    const e = p.bible[0];
+    if (e.plateUrl !== c.expect.plateBecomes) fails.push(`plateUrl is ${JSON.stringify(e.plateUrl)}, expected the reverted render`);
+  }
+  if (c.expect.promptStillContains) {
+    const miss = c.expect.promptStillContains.filter((frag) => !String(p.bible[0].prompt || '').toLowerCase().includes(frag));
+    if (miss.length) fails.push(`refinement dropped earlier decisions: ${miss.join(', ')}`);
+  }
   return { fails, detail: { used, prose: prose.slice(0, 300) } };
 };
 

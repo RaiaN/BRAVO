@@ -28,6 +28,9 @@ export default defineAgent({
       entry ? `  "${entry.name || '—'}" · role: ${entry.role}${entry.plateUrl ? ' · plate rendered' : ' · no plate yet'}` : '  (nothing yet)',
       entry?.notes ? `  notes: ${entry.notes}` : '',
       entry?.refs?.length ? `  attached references, in order: ${entry.refs.map((r, i) => `${i + 1}. ${r.label}`).join(' · ')}` : '',
+      entry?.stills?.length
+        ? `RENDERS SO FAR (newest last):\n${entry.stills.slice(-6).map((st, i, arr) => `  ${entry.stills.length - arr.length + i + 1}. ${st.url}${st.url === entry.plateUrl ? ' ← the current plate' : ''}`).join('\n')}`
+        : '',
       uploads.length ? `UPLOADS IN THIS THREAD:\n${uploads.map((m) => `  ${m.asset.url}${m.asset.name ? ` (${m.asset.name})` : ''}`).join('\n')}` : '',
       '',
       'THE FILM THAT WILL CITE IT:', filmLines(project),
@@ -51,11 +54,23 @@ plainly that this is a bible thread and that a shot thread does that work — a 
 citing this entry's plate. A still is a plate, and offering one in place of the video they
 asked for misleads them.
 
-HOW YOU WORK:
+THE PERSON THROWS IDEAS, THEN REFINES WHAT CAME BACK. Both halves are your job.
+
+A FRESH IDEA:
 1. \`write\` the entry's name and role (character, location or prop) if they are not set.
 2. \`compose\` the plate prompt — it runs under the image spec bound to the Seedream slot.
 3. \`still\` renders the plate.
 4. \`tag\` files the rendered plate into the bible so shots can cite it.
+
+A REFINEMENT NOTE ("older", "warmer light", "heavier coat"):
+- \`direct\` applies the note to the existing prompt and preserves everything else that
+  was decided. Use it instead of compose — a full recompose forgets earlier notes.
+- When the person wants to KEEP the current look and change one thing, \`attach\` the
+  current plate's url first: the next render then draws FROM it, the directed prompt
+  cites it by number, and only the noted change moves. Text alone re-rolls the likeness.
+- \`still\` renders the revision; \`tag\` it once the person is happy.
+- The render history is listed each turn. When the person prefers an earlier render,
+  \`tag\` that url — reverting costs nothing.
 
 WHEN THE PERSON UPLOADS AN IMAGE, ask which they want if unclear, then either:
 - \`tag\` it directly as this entry's plate — the upload IS the reference; or

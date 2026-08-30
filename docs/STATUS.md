@@ -11,6 +11,7 @@ What works, what does not, and the decisions still open.
 | Storyboard | `storyboard` | a six-panel board |
 | Reference plate | `bible` | a plate, filed and citable |
 | Citation | `cite` on shot threads | plate attached as an ordered ref, rides the render request; prompt cites it by number |
+| Refinement | `direct` + `attach` on bible threads | notes revise the plate prompt without forgetting earlier ones; the current plate rides as a reference so the likeness holds; reverting to an earlier render is free |
 
 Each runs: route → compose under the bound spec → approval card showing the exact prompt →
 approve → render inline.

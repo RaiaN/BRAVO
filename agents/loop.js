@@ -75,12 +75,7 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
 
         if (tool.gated) {
           const t = threadById(p(), threadId);
-          const { takesCap, spentTakes } = t.budget;
-          if (spentTakes >= takesCap) {
-            push({ role: 'agent', text: `I have used this thread's budget of ${takesCap} render${takesCap === 1 ? '' : 's'}. Raise the cap if you want more.` });
-            status('needs-you');
-            return;
-          }
+
           const prepared = tool.prepare({ input: call.input, project: p(), thread: t });
           if (prepared.error) {
             push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: { kind: 'error', error: prepared.error }, approved: true, cost: 0 } });
