@@ -7,7 +7,9 @@ reports back.
 There is no canvas. Nothing is dragged, positioned or connected. The rail is the film, in
 order.
 
-<!-- A screenshot belongs here. -->
+<p align="center">
+  <img src="docs/media/hero.svg" alt="The BRAVO shell — a rail of shots and bible entries with live agent states on the left; a thread on the right showing a composed prompt and its approval card" width="960">
+</p>
 
 ## What it does
 

@@ -1,0 +1,75 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+  <rect width="1280" height="720" fill="#191817"/>
+  <text x="640" y="74" text-anchor="middle" fill="#f5f4ef" font-size="34" font-weight="700" letter-spacing="14">B R A V O</text>
+  <text x="640" y="106" text-anchor="middle" fill="#9a9891" font-size="17">an AI film studio in a chat — agents compose under vendor specs, and nothing renders unapproved</text>
+
+  <rect x="140" y="140" width="1000" height="520" rx="14" fill="#262624" stroke="#3a3936" stroke-width="1"/>
+
+  <circle cx="166" cy="164" r="6" fill="#e0443e"/>
+  <circle cx="186" cy="164" r="6" fill="#dea123"/>
+  <circle cx="206" cy="164" r="6" fill="#24a340"/>
+
+  <path d="M140 140 h230 v520 h-230 a14 14 0 0 1 -14 -14 v0 z" fill="none"/>
+  <rect x="141" y="188" width="229" height="471" fill="#1f1e1d"/>
+  <text x="166" y="216" fill="#f5f4ef" font-size="13" font-weight="700" letter-spacing="2">BRAVO</text>
+  <text x="166" y="244" fill="#9a9891" font-size="13">⌘  Films</text>
+  <text x="166" y="268" fill="#9a9891" font-size="13">⚙  Skills</text>
+
+  <text x="166" y="304" fill="#d9a441" font-size="10" font-weight="600" letter-spacing="1.5">RENDERING</text>
+  <text x="166" y="324" fill="#d6d4cc" font-size="12">⟳ shoot · the chase</text>
+  <text x="344" y="324" fill="#d9a441" font-size="11" text-anchor="end">2m 04s</text>
+
+  <text x="166" y="360" fill="#6f6d67" font-size="10" font-weight="600" letter-spacing="1.5">UNTITLED FILM</text>
+  <text x="166" y="384" fill="#d6d4cc" font-size="13">⌗  01  the shoreline</text>
+  <text x="344" y="384" fill="#7fae7f" font-size="12" text-anchor="end">✓</text>
+  <text x="166" y="410" fill="#d6d4cc" font-size="13">⌗  02  night market</text>
+  <text x="344" y="410" fill="#d9a441" font-size="12" text-anchor="end">⟳</text>
+  <rect x="152" y="424" width="206" height="26" rx="6" fill="#302f2c"/>
+  <text x="166" y="441" fill="#f5f4ef" font-size="13" font-weight="600">⌗  03  the chase</text>
+  <text x="344" y="441" fill="#d97757" font-size="12" text-anchor="end">●</text>
+  <text x="180" y="466" fill="#9a9891" font-size="13">└ 03b  on foot instead</text>
+  <text x="344" y="466" fill="#6f6d67" font-size="12" text-anchor="end">○</text>
+
+  <text x="166" y="502" fill="#6f6d67" font-size="10" font-weight="600" letter-spacing="1.5">BIBLE</text>
+  <text x="166" y="526" fill="#d6d4cc" font-size="13">◆  the courier</text>
+  <text x="344" y="526" fill="#7fae7f" font-size="12" text-anchor="end">✓</text>
+  <text x="166" y="550" fill="#d6d4cc" font-size="13">◆  the alley</text>
+  <text x="344" y="550" fill="#e08472" font-size="12" text-anchor="end">⚠</text>
+
+  <text x="166" y="612" fill="#9a9891" font-size="13">＋  New thread</text>
+  <text x="166" y="640" fill="#6f6d67" font-size="11">3 renders this film</text>
+
+  <text x="400" y="217" fill="#9a9891" font-size="14">03</text>
+  <text x="424" y="217" fill="#6f6d67" font-size="14">·</text>
+  <text x="438" y="217" fill="#f5f4ef" font-size="14" font-weight="600">the chase</text>
+  <text x="1110" y="217" fill="#d97757" font-size="12" text-anchor="end">● needs you</text>
+  <line x1="371" y1="234" x2="1140" y2="234" stroke="#3a3936" stroke-width="1"/>
+
+  <rect x="742" y="256" width="368" height="34" rx="12" fill="#34332f"/>
+  <text x="926" y="277" text-anchor="middle" fill="#f5f4ef" font-size="13">make it faster — she is losing, and she knows it</text>
+
+  <text x="400" y="322" fill="#d6d4cc" font-size="13">Recomposed under the Seedance 2.5 spec. The card shows exactly what will be sent.</text>
+
+  <rect x="400" y="344" width="710" height="252" rx="12" fill="#302f2c" stroke="#3a3936" stroke-width="1"/>
+  <rect x="400" y="344" width="710" height="38" rx="12" fill="#3b2e27"/>
+  <rect x="400" y="370" width="710" height="12" fill="#302f2c"/>
+  <text x="422" y="368" fill="#d97757" font-size="11" font-weight="700" letter-spacing="1.5">SHOOT</text>
+  <text x="1088" y="368" fill="#9a9891" font-size="11" text-anchor="end">one Seedance take on seedance25 · minutes</text>
+
+  <rect x="422" y="398" width="666" height="106" rx="8" fill="#262624" stroke="#3a3936" stroke-width="1"/>
+  <text x="438" y="422" fill="#8b8984" font-size="10" letter-spacing="1">SENT VERBATIM · 412 CHARS</text>
+  <text x="438" y="446" fill="#d6d4cc" font-size="12.5" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">She is already through the stalls when the lights go. @Image 1 keeps her</text>
+  <text x="438" y="466" fill="#d6d4cc" font-size="12.5" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">face; the crowd does not part for her. She has stopped choosing her steps.</text>
+  <text x="438" y="486" fill="#d6d4cc" font-size="12.5" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">The camera holds level and lets her go.</text>
+
+  <rect x="422" y="518" width="128" height="24" rx="12" fill="#3a3936"/>
+  <text x="486" y="533" text-anchor="middle" fill="#d6d4cc" font-size="11">@Image 1 · the courier</text>
+  <text x="566" y="533" fill="#6f6d67" font-size="11">720p · adaptive · auto</text>
+
+  <rect x="422" y="554" width="196" height="30" rx="9" fill="#d97757"/>
+  <text x="520" y="573" text-anchor="middle" fill="#1f1e1d" font-size="13" font-weight="600">approve · one take</text>
+  <text x="650" y="573" fill="#9a9891" font-size="13">cancel</text>
+
+  <rect x="400" y="618" width="710" height="30" rx="12" fill="#302f2c" stroke="#3a3936" stroke-width="1"/>
+  <text x="418" y="637" fill="#6f6d67" font-size="12">＋   message the agent about “the chase”…</text>
+</svg>

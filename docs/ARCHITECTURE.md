@@ -148,6 +148,27 @@ These are load-bearing. Breaking one produces a bug that looks like something el
   itself later.
 - **An editing task locks ratio and duration.** Sending either fails the request outright.
 
+## The bible asset
+
+```mermaid
+flowchart TD
+  D[describe the subject] --> C1[compose under plate-pe]
+  U[upload an image] --> T[tag - upload becomes the plate]
+  U --> AT[attach - ordered reference n]
+  AT --> C2[compose - cites image n]
+  C1 --> S[still - approval card]
+  C2 --> S
+  S --> P[bible entry - plateUrl, assetId, refs]
+  T --> P
+  P --> CI[cite - shot reference n]
+  CI --> C3[shot compose - cites image n]
+  C3 --> R[still or shoot - plate rides the request]
+  R -. re-rendering the plate marks citing shots stale .-> P
+```
+
+One thread owns one entry. A brief that needs several subjects means several bible
+threads; the assets view on any bible thread shows the whole set.
+
 ## Wire contracts worth knowing
 
 - Video is asynchronous: start returns a task id, then poll.
