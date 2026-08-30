@@ -1,5 +1,6 @@
 import { filmRows, projectSpend, STATES, stateOf, threadForSubject, unlatchedThreads } from '../state/project';
 import { useEffect, useState } from 'react';
+import { allAgents, isEnabled, setEnabled } from '../agents';
 
 // THE RAIL (§2) — project name, global links, then two sections: THE FILM (shots in
 // order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
@@ -120,7 +121,7 @@ const Section = ({ children }) => (
   </div>
 );
 
-export default function Rail({ project, openThreadId, onOpenThread, onNewThread, screen, onScreen, more, onToggleMore, onReset, theme, onTheme }) {
+export default function Rail({ project, openThreadId, onOpenThread, onNewThread, screen, onScreen, more, onToggleMore, onReset, theme, onTheme, onAgentsChanged }) {
   const rows = filmRows(project);
   const blank = unlatchedThreads(project);
   const spend = projectSpend(project);
@@ -142,6 +143,26 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         </button>
         {more && (
           <div className="drawer">
+            <div className="pref">
+              <span>Agents</span>
+              <div className="agents">
+                {allAgents().map((a) => {
+                  const on = isEnabled(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className={`ag${on ? ' on' : ''}`}
+                      aria-pressed={on}
+                      title={`${a.job}${on ? '' : ' — switched off'}`}
+                      onClick={() => { setEnabled(a.id, !on); onAgentsChanged(); }}
+                    >
+                      {a.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="pref">
               <span>Appearance</span>
               <div className="seg" role="group" aria-label="Appearance">
@@ -266,6 +287,13 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           font-size: 11.5px; color: var(--muted);
         }
         .seg button.on { background: var(--raised); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+        .agents { display: flex; flex-wrap: wrap; gap: 3px; }
+        .ag {
+          padding: 2px 8px; border-radius: 999px; font-size: 11px;
+          background: var(--hover); color: var(--faint);
+          text-decoration: line-through; text-decoration-color: var(--faint);
+        }
+        .ag.on { background: var(--accent-wash); color: var(--accent); text-decoration: none; }
         .danger { font-size: 12px; color: var(--muted); text-align: left; }
         .danger:hover { color: var(--state-stale); }
 
