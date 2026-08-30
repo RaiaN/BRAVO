@@ -4,6 +4,13 @@ How BRAVO is put together, and — more usefully — where the boundaries are. I
 about to add an agent, a tool or a guard, this is the file that tells you which one file
 to touch.
 
+## Conventions
+
+**No comments in code.** Not headers, not section banners, not explanations. Names and
+structure carry the meaning; anything that needs prose goes in this file. The only
+exception is a tooling directive such as `eslint-disable`. Add a comment when asked to,
+and not otherwise.
+
 ## The shape
 
 ```

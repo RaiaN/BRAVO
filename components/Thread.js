@@ -82,8 +82,6 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
           flex: 1; min-width: 0;
           padding: 6px 0; border: 0; outline: none; resize: none;
           background: transparent; line-height: 1.55;
-          /* The resting size, owned by CSS so an empty composer is correct on the very
-             first paint with no measurement involved. rows=1 supplies the line. */
           height: auto; overflow-y: hidden;
           max-height: ${MAX_COMPOSER_PX}px;
         }
