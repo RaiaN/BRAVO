@@ -1,5 +1,3 @@
-// THE ROSTER. Importing this file is what makes an agent exist — the turn engine never
-// imports an agent directly, so adding or removing one touches this list and nothing else.
 import { register } from './registry.js';
 import shot from './shot.js';
 import edit from './edit.js';

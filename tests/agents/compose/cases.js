@@ -1,7 +1,3 @@
-// COMPOSE — at least five inputs (docs/TESTING.md).
-// This is where the SKILL is leveraged, so the cases are about the gates: citations in
-// range, no parameters in prompt text, dialogue preserved, and an unbound slot refused.
-
 export const agent = 'compose';
 
 export const cases = [

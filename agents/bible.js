@@ -1,4 +1,3 @@
-// THE BIBLE AGENT — "make this plate right, keep it consistent".
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';

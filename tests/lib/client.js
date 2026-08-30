@@ -1,10 +1,3 @@
-// The transport for tests.
-//
-// The kit's `createBrowserClient` posts to RELATIVE urls (`/api/seed`), which only
-// resolve in a browser. Tests run in Node against a real BRAVO server, so this mirrors
-// the same interface against an absolute base. It is test-only — the kit is untouched
-// and the app still uses createBrowserClient.
-
 const BASE = process.env.BRAVO_TEST_URL || `http://127.0.0.1:${process.env.PORT || 3210}`;
 
 export const testClient = ({ base = BASE, onCall = () => {} } = {}) => ({
@@ -22,9 +15,6 @@ export const testClient = ({ base = BASE, onCall = () => {} } = {}) => ({
   },
 });
 
-// A client that never reaches the network: replies come from a list, in order. Lets the
-// gate tests exercise malformed and hostile replies that a real model rarely produces on
-// demand.
 export const scriptedClient = (replies) => {
   let i = 0;
   return {
@@ -45,10 +35,6 @@ export const serverUp = async (base = BASE) => {
   } catch { return false; }
 };
 
-// The kit is written for a browser: `hydrateSkills` fetches the RELATIVE url
-// `/api/film/skills`, which Node cannot resolve. Rather than change the kit, give
-// Node an origin — wrap global fetch so relative /api/... paths resolve against the test
-// server, exactly as they would in a page served from it.
 export const installRelativeFetch = (base = BASE) => {
   const real = globalThis.fetch;
   if (real.__bravoWrapped) return;

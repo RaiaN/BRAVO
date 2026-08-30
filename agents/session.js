@@ -1,9 +1,3 @@
-// THE SESSION — decides when a turn runs, and what must happen first: routing a blank
-// thread, latching it to its artifact, approving or cancelling a gated card.
-//
-// Separate from the engine because routing is a policy about the studio, not a step
-// inside a turn — and a thread that never routes must never reach the engine.
-
 import {
   addActivity, appendMessage, latchThread, newId, removeActivity,
   setThreadStatus, threadById,
@@ -15,25 +9,20 @@ import { route } from './router.js';
 import { runTurn } from './loop.js';
 import { defaultImageModelKey, defaultVideoModelKey } from '../utils/film/suiteConfig.js';
 
-// Route a unisex thread and latch it (from here it owns exactly one artifact).
-// Returns true when the thread is ready for a turn.
 const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
   const thread = threadById(get(), threadId);
   if (!thread) return false;
   if (thread.kind) return true;
 
   const first = [...thread.messages].reverse().find((m) => m.role === 'user');
-  // The router is only ever offered agents that are actually switched on, so it cannot
-  // route a thread to something that will then refuse to run.
   const decision = await route({ client, message: first?.text || '', modelId, choices: enabledAgents() });
 
   if (decision.ask) {
     apply((prev) => appendMessage(prev, threadId, { role: 'agent', text: decision.ask }));
     apply((prev) => setThreadStatus(prev, threadId, 'needs-you'));
-    return false;                                          // stays unisex, on purpose
+    return false;
   }
 
-  // The module decides how its own kind acquires a subject — the session does not know.
   const mod = agentFor(decision.kind);
   apply((prev) => {
     const made = mod?.latch
@@ -49,16 +38,12 @@ const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
   return true;
 };
 
-// The one entry point the shell calls: get this thread to the point where it can work,
-// then work.
 export const advance = async ({ client, threadId, get, apply, modelId = null }) => {
   const ready = await ensureRouted({ client, threadId, get, apply, modelId });
   if (!ready) return;
   await runTurn({ client, threadId, get, apply, modelId });
 };
 
-// Run a gated call the person approved. The card is the record of what was shown before
-// spending, so this sends exactly that and nothing reassembled.
 export const approveCall = async ({ client, threadId, messageId, get, apply, modelId = null }) => {
   const p = () => get();
   const msg = threadById(p(), threadId)?.messages.find((m) => m.id === messageId);
@@ -77,8 +62,6 @@ export const approveCall = async ({ client, threadId, messageId, get, apply, mod
   apply((prev) => setThreadStatus(prev, threadId, 'working'));
   mark({ approved: true });
 
-  // The activity row is written the moment a task id exists — so a render that takes
-  // minutes is visible while it runs, and recoverable if the tab closes.
   const activityId = newId('act');
   const onTask = async ({ taskId, tool: name, label }) => {
     apply((prev) => addActivity(prev, { id: activityId, threadId, messageId, taskId, tool: name, label }));
@@ -102,11 +85,9 @@ export const approveCall = async ({ client, threadId, messageId, get, apply, mod
     return;
   }
 
-  // Let the agent see what came back and report on it.
   await runTurn({ client, threadId, get, apply, modelId });
 };
 
-// Cancel: the card is marked refused and nothing is ever sent.
 export const cancelCall = (project, threadId, messageId) => setThreadStatus({
   ...project,
   threads: project.threads.map((t) => (t.id === threadId

@@ -1,9 +1,3 @@
-// still / shoot / edit — GATED. Real money, approved first.
-//
-// The engine never runs these directly: it turns the call into an approval card showing
-// the exact prompt and ordered references, and only approval executes them.
-// prepare() builds what the card shows; run() is what approval executes.
-
 import { newId, setBibleFields, setShotFields, shotById } from '../../state/project.js';
 import { animate } from '../../utils/film/core/operations.js';
 import { clampResolution, imageTagOf, resDefault, videoTraits } from '../../utils/film/suiteConfig.js';
@@ -13,9 +7,7 @@ const needPrompt = (shot) => (shot.prompt
   ? null
   : 'this shot has no prompt yet. Use compose first — the prompt is written under the bound spec, never here.');
 
-// What the approval card shows. Nothing is sent while building this.
 export const prepare = (name, { input, project, thread }) => {
-  // A plate and a shot are both renderable subjects; `still` does not care which.
   const subject = resolveSubject(project, thread, input.shot);
   if (!subject) return { error: `no subject matches ${JSON.stringify(input.shot ?? null)}` };
   const missingPrompt = needPrompt(subject);
@@ -52,7 +44,7 @@ export const prepare = (name, { input, project, thread }) => {
         tool: 'still',
         shotId: shot.id,
         title: shot.title,
-        prompt: shot.prompt,                       // shown in full BEFORE spending
+        prompt: shot.prompt,
         refs: shot.refs.map((r, i) => ({ n: i + 1, label: r.label, role: r.role, url: r.url })),
         refPrefix: '',
         params: { size: input.size || '2K' },
@@ -74,8 +66,6 @@ export const prepare = (name, { input, project, thread }) => {
         prompt: shot.prompt,
         refs: [],
         refPrefix: traits.refPrefix,
-        // An EDITING TASK LOCKS RATIO AND DURATION. Sending either fails the request with
-        // InvalidParameter.TaskTypeConstraint. Resolution IS still honoured.
         params: { model: shot.model, resolution, ratio: null, duration: null },
         estimate: 'a Seedance editing task · minutes',
       },
@@ -112,8 +102,6 @@ const landTake = (project, shotId, take) => {
   });
 };
 
-// ---- still -------------------------------------------------------------------------
-
 export const still = {
   name: 'still',
   gated: true,
@@ -123,23 +111,18 @@ export const still = {
   run: async ({ card, project, ctx }) => {
     const started = Date.now();
     const { url, cacheUrl } = await ctx.client.generateImage({
-      prompt: card.prompt,                          // verbatim — no assembly
+      prompt: card.prompt,
       referenceImages: card.refs.map((r) => r.url).filter(Boolean),
       size: card.params.size,
     });
     const still_ = {
       id: newId('still'),
-      // The raw generation url EXPIRES (~24h). cacheUrl is the media store's copy — disk
-      // plus the TOS mirror — so a still outlives the request that made it. A take whose
-      // video is gone cannot explain itself, whatever promptUsed says.
       url: cacheUrl || url,
       sourceUrl: url,
       createdAt: new Date().toISOString(),
       ms: Date.now() - started,
-      promptUsed: card.prompt,                      // the invariant
+      promptUsed: card.prompt,
     };
-    // A plate lands on the bible entry (and becomes its plateUrl, which is what RIDES in
-    // later requests — : consistency is attachment). A shot's still lands on the shot.
     const next = card.subjectKind === 'bible'
       ? setBibleFields(project, card.shotId, {
         stills: [...(project.bible.find((b) => b.id === card.shotId)?.stills || []), still_],
@@ -152,8 +135,6 @@ export const still = {
   },
 };
 
-// ---- shoot -------------------------------------------------------------------------
-
 export const shoot = {
   name: 'shoot',
   gated: true,
@@ -164,8 +145,6 @@ export const shoot = {
     const started = Date.now();
     const p = card.params;
 
-    // THE ONE SPEC-LEGAL SHAPE. Leaving camera/lens/focalLength/aperture unset makes the
-    // kit's buildAnimatePrompt return `motion` untouched — the prompt is the prompt.
     const { taskId, prompt } = await animate({
       motion: card.prompt,
       refUrls: card.refs.map((r) => r.url).filter(Boolean),
@@ -178,20 +157,18 @@ export const shoot = {
       modelKey: p.model,
     }, { client: ctx.client });
 
-    // Announce the task BEFORE polling: a Seedance take runs for minutes, and the id is
-    // what lets the render survive a reload.
     if (ctx.onTask) await ctx.onTask({ taskId, tool: 'shoot', label: card.title || 'a take' });
 
     const { videoUrl, lastFrameUrl, videoCacheUrl, lastFrameCacheUrl } = await ctx.client.pollVideo({ taskId });
 
     const take = {
       id: newId('take'),
-      url: videoCacheUrl || videoUrl,               // durable copy first — the raw url expires
+      url: videoCacheUrl || videoUrl,
       sourceUrl: videoUrl,
       posterUrl: lastFrameCacheUrl || lastFrameUrl || null,
       createdAt: new Date().toISOString(),
       ms: Date.now() - started,
-      promptUsed: prompt,                           // what was ACTUALLY sent
+      promptUsed: prompt,
       model: p.model,
       seed: p.seed,
       resolution: p.resolution,
@@ -202,8 +179,6 @@ export const shoot = {
   },
 };
 
-// ---- edit --------------------------------------------------------------------------
-
 export const edit = {
   name: 'edit',
   gated: true,
@@ -212,27 +187,23 @@ export const edit = {
   prepare: (args) => prepare('edit', args),
   run: async ({ card, project, ctx }) => {
     const started = Date.now();
-    // ratio and duration are NOT SENT — an editing task locks both and rejects the
-    // request outright if either rides along. Resolution is honoured.
     const { taskId, prompt } = await animate({
       motion: card.prompt,
       videoRefUrls: [card.sourceUrl],
-      duration: 'auto',                             // 'auto' omits the field entirely
+      duration: 'auto',
       ratio: null,
       resolution: card.params.resolution,
       generateAudio: false,
       modelKey: card.params.model,
     }, { client: ctx.client });
 
-    // Announce the task BEFORE polling: a Seedance take runs for minutes, and the id is
-    // what lets the render survive a reload.
     if (ctx.onTask) await ctx.onTask({ taskId, tool: 'shoot', label: card.title || 'a take' });
 
     const { videoUrl, lastFrameUrl, videoCacheUrl, lastFrameCacheUrl } = await ctx.client.pollVideo({ taskId });
 
     const take = {
       id: newId('take'),
-      url: videoCacheUrl || videoUrl,               // durable copy first — the raw url expires
+      url: videoCacheUrl || videoUrl,
       sourceUrl: videoUrl,
       posterUrl: lastFrameCacheUrl || lastFrameUrl || null,
       createdAt: new Date().toISOString(),

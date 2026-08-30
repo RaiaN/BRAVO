@@ -1,7 +1,3 @@
-// ROUTER — at least five inputs (docs/TESTING.md).
-// Not five happy paths: the ordinary case, a boundary, an ambiguity that must be ASKED
-// about rather than guessed, one that must be refused, and room for regressions.
-
 export const agent = 'router';
 
 export const cases = [

@@ -6,14 +6,6 @@ models:
   - seedreamPro
 ---
 
-# Plate and panel prompt spec
-
-**Provenance, so nobody is misled.** The Seedance specs in this library (`sd25-pe`,
-`sd20-pe`) are vendor documents and outrank everything. This one is not — it was written
-for BRAVO because the image slots had no spec bound, and BRAVO refuses to compose without one.
-It is deliberately visible and editable: replace it wholesale from the Skills screen the
-day you have the official Seedream prompt guide.
-
 ## What a plate is for
 
 A plate is not an illustration. It is the **reference that rides in later requests** so

@@ -1,19 +1,5 @@
-// OUTPUT GUARDS — checks on what an agent SAYS, after its tools have run.
-//
-// A guard is (report) -> correction | null. The engine runs them without knowing what any
-// of them check. A guard corrects; it never rewrites — the agent's words stay in the
-// transcript with the correction beneath them.
-
-// ONLY claims that work is happening WITHOUT the person. Describing what a card will do
-// once approved ("this will render one take") is honest and must not trip this — a gate
-// that cries wolf gets ignored, which is worse than no gate at all.
 const CLAIMS_WORK = /\b(queued|queueing|in the queue|render job|unattended|in the background|processing will|will process|complete automatically|automatically when|(you|you'll|you will)[^.]{0,40}\bnotified\b|notify you when|when (it|the render|it's|the take) is ready)\b/i;
 
-// Observed live: an agent ran `write`, then reported "Shot 03 is queued for render… this
-// render job will process unattended… you will be notified automatically." Nothing was
-// queued. BRAVO has no job runner — a render happens only inside an approved card. The
-// person then waits for something that will never arrive, which is the most damaging
-// thing a model can get wrong.
 export const noFabricatedCompletion = ({ prose, rendered }) => {
   if (rendered) return null;
   const hit = CLAIMS_WORK.exec(String(prose || ''));
@@ -26,10 +12,6 @@ export const DEFAULT_GUARDS = [noFabricatedCompletion];
 export const runGuards = (guards, report) => guards
   .map((g) => { try { return g(report); } catch { return null; } })
   .filter(Boolean);
-
-// ---- thrash ------------------------------------------------------------------------
-// An agent repeating the SAME failing call is not making progress. Seen once observed:
-// five identical still→error rounds in a single turn.
 
 export const makeThrashGuard = (limit = 2) => {
   const seen = new Map();

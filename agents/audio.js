@@ -1,8 +1,3 @@
-// THE AUDIO AGENT — "voice, score, sound design".
-//
-// Registered but OFF by default: `speak` is not built, so it holds only free tools and
-// would promise work it cannot do. It exists here so the roster is honest about what the
-// studio does and does not have, and so switching it on is one toggle once `speak` lands.
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -13,7 +8,7 @@ export default defineAgent({
   title: 'Audio',
   job: 'voice, score, sound design',
   tools: TOOLS_BY_KIND.audio,
-  enabledByDefault: false,          // `speak` is not implemented yet
+  enabledByDefault: false,
 
   context: (project) => ['THE FILM:', filmLines(project), '', `THE LOOK: ${lookLine(project)}`].join('\n'),
 

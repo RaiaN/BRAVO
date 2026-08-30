@@ -7,10 +7,6 @@ models:
   - seedanceMini
 ---
 
-# Seedance 2.0 Prompt Spec
-
-Three parts. **Part 0 fixes the SHAPE of the finished prompt.** Part 1 is the official Dreamina guide — the syntax and the capabilities. Part 2 is the Vibe Creating method — how to decide what the prompt should say. Where Part 1 and Part 2 disagree on wording, the guide wins; where either disagrees with Part 0 on layout, Part 0 wins.
-
 ## Part 0 — The Finished Prompt
 
 When the caller asks for a prompt, return the prompt and nothing else — no judgement line, no action label, no notes section. Lay it out in this order, omitting any block the shot has nothing for. Never pad a block to look complete.

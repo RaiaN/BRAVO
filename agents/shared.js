@@ -1,8 +1,3 @@
-// Facts and doctrine every agent module shares.
-//
-// Kept out of the turn engine on purpose: the engine must not know what any particular
-// agent believes. Kept out of the individual modules so the doctrine has one wording.
-
 import { filmRows } from '../state/project.js';
 
 export const lookLine = (project) => [

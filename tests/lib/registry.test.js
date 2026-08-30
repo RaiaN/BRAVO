@@ -1,4 +1,3 @@
-// The agent registry: modules are isolated, and enable/disable is real.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../agents/index.js';

@@ -1,19 +1,7 @@
-// compose / direct — one reasoner call each, no approval, no money.
-//
-// This is where the skill is leveraged: the vendor's spec for the shot's bound model slot
-// rides verbatim in the system prompt, and requireSkillLine THROWS for an unbound slot.
-// What comes back IS the prompt. Nothing wraps it, and no parameter is written into it.
-
 import { setBibleFields, setShotFields } from '../../state/project.js';
 import { defaultImageModelKey, imageTraits, videoTraits } from '../../utils/film/suiteConfig.js';
 import { resolveSubject } from './shared.js';
 
-// ---- the code gates ----------------------------------------------------------
-// "Every LLM promise needs a code gate — a deterministic check, a retry, a visible
-// report. Minimum: citation numbers within range, dialogue lines preserved."
-
-// Duration, ratio and resolution are PARAMETERS, never prompt text. A model told
-// "a 6 second shot" renders the words, not the length.
 const PARAMS_RE = /\b(\d+\s*(seconds?|secs?|s)\b|\d+:\d+\b|1080p|720p|480p|4K)\b/i;
 
 export const composeGates = (prompt, { refCount, dialogue = [] }) => {
@@ -30,7 +18,6 @@ export const composeGates = (prompt, { refCount, dialogue = [] }) => {
     problems.push(`"${leak[0]}" is a parameter, not prompt text. Duration, ratio and resolution are sent as fields — never written into the prompt.`);
   }
 
-  // Dialogue survives verbatim or the take says the wrong words.
   dialogue.filter(Boolean).forEach((line) => {
     if (!String(prompt).includes(line)) problems.push(`the dialogue line ${JSON.stringify(line)} is missing or altered. Reproduce it exactly.`);
   });
@@ -85,16 +72,12 @@ const runCompose = async ({ input, project, thread, ctx, mode }) => {
   if (mode === 'direct' && !shot.prompt) {
     return { project, cost: 0, output: { kind: 'error', error: 'direct: this shot has no prompt yet. Use compose first.' } };
   }
-  // A plate renders on an IMAGE slot; a shot on a video slot. The slot is chosen from the
-  // env-configured preference, recorded on the subject, and visible — not substituted at
-  // send time.
   let modelKey = shot.model;
   if (!modelKey && shot.kind === 'bible') modelKey = defaultImageModelKey();
   if (!modelKey) {
     return { project, cost: 0, output: { kind: 'error', error: 'this shot has no model slot set. Use write to set "model" first — the skill is bound to the slot.' } };
   }
 
-  // : unbound means REFUSED. This throws, and the refusal is the correct outcome.
   let skillLine;
   try {
     skillLine = await ctx.requireSkillLine(modelKey);
@@ -119,7 +102,6 @@ const runCompose = async ({ input, project, thread, ctx, mode }) => {
   let prompt = '';
   let problems = [];
 
-  // One retry, quoting the exact violation. a check, a retry and a report.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const ask = attempt === 0
       ? brief(project, shot, note)

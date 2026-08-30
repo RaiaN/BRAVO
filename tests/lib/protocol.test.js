@@ -1,4 +1,3 @@
-// Layer 1: the gates, as pure functions. No model, no network, no money.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gateCall, parseBlocks, parseReply, retryPrompt } from '../../agents/protocol.js';
@@ -24,7 +23,7 @@ test('malformed blocks are reported, never guessed at', () => {
   const r = parseReply('```bravo\n{ nope }\n```');
   assert.equal(r.calls.length, 0);
   assert.match(r.errors[0].error, /not valid JSON/);
-  assert.match(retryPrompt(r.errors), /not valid JSON/);   // the fault is quoted back
+  assert.match(retryPrompt(r.errors), /not valid JSON/);
 });
 
 test('a block that is not an object is rejected', () => {
@@ -59,29 +58,20 @@ test('citations outside the ref count are caught', () => {
 });
 
 test('duration, ratio and resolution must never reach prompt text', () => {
-  // The state a world model should be given — no parameters anywhere in it.
   assert.equal(gates.noParametersInPromptText('the wolf is cornered and means it'), null);
   assert.equal(gates.noParametersInPromptText('the log is wet and the dog has left the ground'), null);
-  // Every shape of leak. Singular "second" is the one people actually write.
   for (const leak of ['a 6 second shot', '6 seconds', '10 sec', '5s', 'shot in 1080p', 'framed 16:9', '9:16 vertical', 'in 4K']) {
     assert.match(gates.noParametersInPromptText(leak), /leaked/, `should have caught: ${leak}`);
   }
 });
 
-// REGRESSION: the router's block is {kind}/{ask}, not a tool call. Reading it with the
-// tool-call rules discarded every valid answer as "missing a tool name", so every route
-// fell through to "ask". The two shapes must stay parseable apart.
 test('a non-tool block is readable by the block parser', () => {
   const { blocks, errors } = parseBlocks('```bravo\n{"kind":"shot","title":"the collision"}\n```');
   assert.equal(errors.length, 0);
   assert.deepEqual(blocks[0], { kind: 'shot', title: 'the collision' });
-  // ...and is still, correctly, not a tool call.
   assert.equal(parseReply('```bravo\n{"kind":"shot"}\n```').calls.length, 0);
 });
 
-// REGRESSION: the router returned the person's entire first sentence as the title, which
-// then truncated mid-word in every rail row. The prompt asks for five words; this is what
-// makes it true.
 test('a thread title is capped at five words (gate)', async () => {
   const { shortTitle } = await import('../../agents/router.js');
   assert.equal(shortTitle('the collision'), 'the collision');
@@ -92,13 +82,6 @@ test('a thread title is capped at five words (gate)', async () => {
   assert.ok(shortTitle('supercalifragilistic expialidocious extraordinarily verbose naming').length <= 42);
 });
 
-// REGRESSION: an agent ran `write` and then reported "Shot 03 is queued for render… this
-// render job will process unattended… you will be notified automatically." Nothing was
-// queued — BRAVO has no job runner. The person then waits for something that will never
-// arrive, which is the most damaging thing a model can get wrong.
-//
-// The first version of this gate also flagged an HONEST sentence describing what a card
-// would do once approved. A gate that cries wolf gets ignored, so both directions matter.
 test('fabricated completion is caught, and honest reports are not', async () => {
   const { noFabricatedCompletion } = await import('../../agents/guards.js');
 
@@ -118,11 +101,9 @@ test('fabricated completion is caught, and honest reports are not', async () => 
     assert.equal(noFabricatedCompletion({ prose: honest, rendered: false }), null, `false positive on: ${honest}`);
   }
 
-  // When a render genuinely happened this turn, the same words are simply true.
   assert.equal(noFabricatedCompletion({ prose: 'Shot 03 is now queued for render.', rendered: true }), null);
 });
 
-// Guards are composable units the engine runs without knowing what they check.
 test('runGuards collects every correction and swallows a throwing guard', async () => {
   const { runGuards } = await import('../../agents/guards.js');
   const boom = () => { throw new Error('a broken guard must not kill the turn'); };
@@ -130,7 +111,6 @@ test('runGuards collects every correction and swallows a throwing guard', async 
   assert.deepEqual(out, ['first', 'second']);
 });
 
-// An agent repeating the same failing call is thrashing, not working.
 test('the thrash guard stops a repeated identical failure', async () => {
   const { makeThrashGuard } = await import('../../agents/guards.js');
   const thrash = makeThrashGuard(2);

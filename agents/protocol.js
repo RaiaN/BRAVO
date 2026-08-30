@@ -1,14 +1,5 @@
-// THE TOOL-CALL PROTOCOL.
-//
-// The reasoner route has no function calling — it takes a prompt and returns a string. So
-// agents speak a text grammar and BRAVO parses it, which makes this file the gate:
-// nothing downstream trusts the model. A call that does not parse, names a tool the agent
-// does not hold, or carries the wrong shape, is refused here and reported.
-
 export const FENCE = 'bravo';
 
-// The grammar, quoted into every agent's system prompt so there is exactly one definition
-// of it in the codebase.
 export const PROTOCOL_PROMPT = `To use a tool, emit a fenced block tagged \`${FENCE}\` containing one JSON object:
 
 \`\`\`${FENCE}
@@ -22,14 +13,8 @@ Rules:
 - Refer to a shot by its number as shown in the film, or by its id. Never invent one.
 - When you have nothing left to do, write your report as prose and emit no blocks.`;
 
-// ---- parsing ---------------------------------------------------------------------
-
 const FENCE_RE = new RegExp(`\`\`\`${FENCE}\\s*\\n([\\s\\S]*?)\`\`\``, 'g');
 
-// LAYER 1 — the block format itself: a JSON object inside a ```bravo fence. Every agent
-// speaks this. What the object CONTAINS varies: a shot agent emits tool calls, the router
-// emits a kind. Keeping the two apart matters — parsing a router answer with the tool-call
-// rules discards it as malformed, which is a bug this file has already had once.
 export const parseBlocks = (text) => {
   const raw = String(text || '');
   const blocks = [];
@@ -57,9 +42,6 @@ export const parseBlocks = (text) => {
   return { prose: prose.replace(/\n{3,}/g, '\n\n').trim(), blocks, errors };
 };
 
-// LAYER 2 — the TOOL-CALL shape. Split a reply into the prose a person reads and the
-// calls the machine runs. `errors` carries every block that failed, so the retry can quote
-// the exact fault back to the model instead of asking it to try harder.
 export const parseReply = (text) => {
   const { prose, blocks, errors } = parseBlocks(text);
   const calls = [];
@@ -80,11 +62,6 @@ export const parseReply = (text) => {
   return { prose, calls, errors };
 };
 
-// ---- the gate --------------------------------------------------------------------
-
-// A call the agent is not allowed to make is not an error to recover from — it is a
-// refusal to report (an unknown id resolves to nothing). `allowed` is the agent's own
-// tool list from , so an agent can never reach a tool outside its row.
 export const gateCall = (call, allowed, tools) => {
   if (!allowed.includes(call.tool)) {
     return { ok: false, reason: `"${call.tool}" is not a tool this agent holds (it has: ${allowed.join(', ')})` };
@@ -96,8 +73,6 @@ export const gateCall = (call, allowed, tools) => {
   return { ok: true };
 };
 
-// The message handed back to the model when a reply did not parse. It quotes the fault
-// verbatim — a retry that just says "try again" teaches the model nothing.
 export const retryPrompt = (errors) => [
   'Your last reply had blocks that could not be read:',
   ...errors.map((e, i) => `${i + 1}. ${e.error}\n   in: ${e.body.slice(0, 200)}`),

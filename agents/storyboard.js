@@ -1,5 +1,3 @@
-// THE STORYBOARD AGENT — its artifact is a storyboard IMAGE: the film drawn as panels,
-// before anything is rendered for real. Not in table; defined here because // shot creation forking-only and a storyboard is one image, not N shots.
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -12,8 +10,6 @@ export default defineAgent({
   job: 'draw the film as a storyboard image',
   tools: TOOLS_BY_KIND.storyboard,
 
-  // Its artifact is an IMAGE, so it belongs on an image slot — a video slot would bind it
-  // to the wrong spec entirely.
   latch: ({ project, title, imageSlot }) => {
     const made = insertShot(project, { fields: { title }, modelSlot: imageSlot });
     return { project: made.project, subjectId: made.shot.id };

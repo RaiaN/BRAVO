@@ -125,8 +125,11 @@ These are load-bearing. Breaking one produces a bug that looks like something el
   thread shows is what the model receives. `operations.animate()` will prepend camera
   language unless the cinematography fields are left unset — so `shoot` passes only
   `motion`.
-- **Never substitute a default.** An unknown id resolves to nothing; an unbound slot
-  refuses. Not to the first item, not to a stub.
+- **Never substitute a default — no fallbacks.** An unknown id resolves to nothing; an
+  unbound slot refuses; a missing skills directory is an error, not an empty library; a
+  plate with no role is refused rather than filed as a character. Above all, **broken and
+  absent are different answers**: a saved film that will not parse is reported, never
+  replaced by a blank one.
 - **Duration, ratio and resolution are parameters, never prompt text.**
 - **Consistency is attachment, not description.** A plate rides in the request; the prompt
   cites it and does not re-describe it.

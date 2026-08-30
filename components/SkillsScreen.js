@@ -21,10 +21,16 @@ export default function SkillsScreen({ onClose }) {
   const [draft, setDraft] = useState('');
   const [tick, setTick] = useState(0);
   const [lock, setLock] = useState({});
+  const [lockError, setLockError] = useState(null);
 
   useEffect(() => { hydrateSkills().then(() => setSkills(allSkills())); }, []);
   useEffect(() => {
-    fetch('/api/skills-lock').then((r) => r.json()).then((j) => setLock(j.skills || {})).catch(() => {});
+    fetch('/api/skills-lock')
+      .then((r) => r.json())
+      .then((j) => setLock(j.skills || {}))
+      // Provenance quietly vanishing would leave a vendor spec and a local one looking
+      // identical, which is the one thing this screen exists to distinguish.
+      .catch((err) => setLockError(err.message));
   }, []);
   useEffect(() => { setSkills(allSkills()); }, [tick]);
 
@@ -50,6 +56,10 @@ export default function SkillsScreen({ onClose }) {
             the system prompt of every call that model makes. A slot with nothing bound
             refuses to compose — there is no fallback and no house style.
           </p>
+
+          {lockError && (
+            <p className="warn">Provenance unavailable ({lockError}) — vendor and local specs cannot be told apart below.</p>
+          )}
 
           {unbound.length > 0 && (<p className="warn">
               Unbound: {unbound.join(', ')}. Any shot on those slots will refuse to compose.

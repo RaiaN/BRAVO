@@ -1,10 +1,3 @@
-// THE EDIT WIRE CONTRACT. A Seedance EDITING task locks ratio and duration: sending
-// either fails the request outright with InvalidParameter.TaskTypeConstraint. Resolution
-// IS still honoured.
-//
-// This asserts the ACTUAL HTTP BODY, not the arguments handed to animate(). The kit's
-// startVideo is what drops the fields, so checking a layer higher passes while the real
-// request is still wrong — which is exactly what happened the first time.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { insertShot, makeProject, newId, setShotFields } from '../../state/project.js';
@@ -12,9 +5,6 @@ import { TOOLS } from '../../agents/tools/index.js';
 import { createBrowserClient } from '../../utils/film/core/client.js';
 import { applyDeployModels } from '../../utils/film/suiteConfig.js';
 
-// Layer 1 runs OFFLINE — no server, so nothing hydrates the model table and every slot
-// looks unconfigured. Supply a stand-in: these ids never leave the process, because the
-// fetch below answers before anything reaches the network.
 applyDeployModels({
   seedance25: 'test-seedance-25',
   seedance: 'test-seedance',
@@ -30,7 +20,7 @@ const seed = () => {
       title: 'the standoff',
       model: 'seedance25',
       prompt: 'The wolf holds the log and will not yield.',
-      ratio: '16:9',          // set on the shot — and must NOT reach an edit request
+      ratio: '16:9',
       duration: 10,
       resolution: '720p',
     },

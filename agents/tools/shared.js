@@ -1,10 +1,5 @@
-// Shared by every tool: how a shot the agent NAMED becomes a shot BRAVO holds.
-
 import { bibleEntryById, filmRows, shotById } from '../../state/project.js';
 
-// Resolve what the agent called a shot. Accepts the number a person says out loud
-// ("shot 3"), the `03b` label a fork wears, or a stable id. Anything else resolves to
-// NOTHING — never "the shot we were just looking at".
 export const resolveShot = (project, ref, thread) => {
   if (ref === undefined || ref === null || ref === '') {
     return thread?.subjectId ? shotById(project, thread.subjectId) : null;
@@ -20,12 +15,6 @@ export const resolveShot = (project, ref, thread) => {
   return null;
 };
 
-
-
-// THE SUBJECT a tool acts on. A `bible` thread owns a BibleEntry; every other kind owns a
-// Shot. Both are composed and rendered the same way, so this returns one shape and the
-// render tools stop caring which they were handed. Without it the bible agent called
-// `still`, hit "no shot matches null", and looped.
 export const resolveSubject = (project, thread, ref) => {
   if (thread?.kind === 'bible') {
     const entry = bibleEntryById(project, thread.subjectId);

@@ -34,6 +34,7 @@ export default function Shell() {
   const [openThreadId, setOpenThreadId] = useState(null);
   const [more, setMore] = useState(false);
   const [screen, setScreen] = useState(null);   // null | 'films' | 'skills'
+  const [loadError, setLoadError] = useState(null);
   const [theme, setTheme] = useState('system');
   const saveTimer = useRef(null);
   const latest = useRef(null);
@@ -56,7 +57,15 @@ export default function Shell() {
   // and the store is read in an effect. Rendering the project during SSR would hydrate
   // against a different tree.
   useEffect(() => {
-    const stored = loadProject();
+    let stored;
+    try {
+      stored = loadProject();
+    } catch (err) {
+      // A saved film that will not parse must NOT be replaced by a blank one. Stop and
+      // say so; the data is still on disk and still recoverable.
+      setLoadError(err.message);
+      return;
+    }
     const next = stored || makeProject();
     if (!stored) saveProject(next);
     setProject(next);
@@ -176,7 +185,8 @@ export default function Shell() {
   // ---- films ---------------------------------------------------------------------
 
   const openFilm = useCallback((id) => {
-    const loaded = loadProject(id);
+    let loaded;
+    try { loaded = loadProject(id); } catch (err) { setLoadError(err.message); return; }
     if (!loaded) return;                      // an id the store does not hold → nothing
     latest.current = loaded;
     setProject(loaded);
@@ -194,9 +204,11 @@ export default function Shell() {
   }, []);
 
   const filmsChanged = useCallback(() => {
-    // A deleted film may have been the open one; fall back to whatever remains.
+    // A deleted film may have been the open one; open whatever remains.
     if (listProjects().some((f) => f.id === latest.current?.id)) { setMore((v) => v); return; }
-    const next = loadProject() || makeProject();
+    let remaining = null;
+    try { remaining = loadProject(); } catch (err) { setLoadError(err.message); return; }
+    const next = remaining || makeProject();
     saveProject(next);
     latest.current = next;
     setProject(next);

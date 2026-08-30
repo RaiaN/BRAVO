@@ -1,17 +1,5 @@
-// THE ROUTER — what turns a unisex thread into an agent.
-//
-// A thread is born with no kind. The first message decides which agent it belongs to, and
-// the kind then LATCHES (a thread owns exactly one artifact). This runs once per
-// thread, ever.
-//
-// It is an LLM promise, so applies in full: the answer is checked against the known
-// kinds, and anything else becomes a QUESTION rather than a guess. There is no default
-// kind — "never substitute a default" covers routing too.
-
 import { parseBlocks } from './protocol.js';
 
-// The roster is not hardcoded here: it comes from whichever agents are REGISTERED AND
-// ENABLED, so a switched-off agent can never be routed to and a new one needs no edit.
 const systemFor = (choices) => `You route a new conversation to the right agent in BRAVO, a film studio.
 
 The agents:
@@ -35,24 +23,18 @@ If the message genuinely does not indicate which agent is wanted, do NOT pick on
 
 Guessing is worse than asking. Answer with the block and nothing else.`;
 
-// → { kind, title } when it routed, or { ask } when it could not, or { ask } again when
-// the model returned something outside the known list. The caller latches only on `kind`.
 export const route = async ({ client, message, modelId = null, choices = [] }) => {
   const kinds = choices.map((a) => a.id);
   const { content } = await client.reason({
     prompt: message,
     systemPrompt: systemFor(choices),
     modelId,
-    reasoningEffort: 'low',      // a one-line classification, not the heavy thinking
+    reasoningEffort: 'low',
   });
 
-  // The router's block is `{kind}` or `{ask}` — NOT a tool call, so it is read with the
-  // block parser, not parseReply. Reading it with the tool-call rules threw every valid
-  // answer away as "missing a tool name".
   const { blocks } = parseBlocks(content);
   const answer = blocks[0];
 
-  // THE GATE. Nothing below trusts the model's word for it.
   if (!answer) {
     return { ask: `I could not tell what this thread is for. This studio has: ${kinds.join(', ')}.` };
   }
@@ -63,11 +45,7 @@ export const route = async ({ client, message, modelId = null, choices = [] }) =
   return { kind: answer.kind, title: shortTitle(answer.title) };
 };
 
-// A title is a rail label, not a sentence — an over-long one truncates mid-word in every
-// row that shows it. The prompt asks for five words; this is the gate that means it (// an LLM promise needs a deterministic check, not a hope).
 export const shortTitle = (raw) => {
-  // Trim BEFORE stripping quotes: anchored ^ and $ never reach them through padding, so
-  // `  "The Collision."  ` came back still wearing its quotes.
   const clean = String(raw || '')
     .replace(/\s+/g, ' ')
     .trim()

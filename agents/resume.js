@@ -1,13 +1,3 @@
-// RESUMING A RENDER ACROSS A RELOAD.
-//
-// The loop runs in the browser, so closing the tab kills the turn — but the Seedance task
-// does NOT stop: it keeps running on the server and its id is durable. An activity row is
-// written before polling begins, so on the next load we can pick the task back up instead
-// of losing a take that was already paid for.
-//
-// This is what makes "background" honest. Nothing is queued locally; what survives is a
-// task the server is already working on, and its id.
-
 import {
   appendMessage, newId, patchActivity, removeActivity, setShotFields, shotById, threadById,
 } from '../state/project.js';
@@ -21,7 +11,6 @@ const landTake = (project, shotId, take) => {
   });
 };
 
-// Resume every render that was in flight. Returns the project with whatever landed.
 export const resumeActivity = async ({ client, project, onProgress = () => {} }) => {
   let p = project;
   const running = (p.activity || []).filter((a) => a.state === 'running' && a.taskId);

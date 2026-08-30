@@ -1,4 +1,3 @@
-// THE EDIT AGENT — "operate on an existing take".
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -11,9 +10,6 @@ export default defineAgent({
   job: 'operate on an existing take — a Seedance 2.5 editing task, or extend it',
   tools: TOOLS_BY_KIND.edit,
 
-  // An edit thread ATTACHES to something that already exists; it never creates a shot.
-  // With exactly one shot holding takes it attaches there; with several it attaches to
-  // nothing and the agent asks, because picking one would substitute a default.
   latch: ({ project }) => {
     const withTakes = (project.film.shots || []).filter((s) => s.takes.length);
     return { project, subjectId: withTakes.length === 1 ? withTakes[0].id : null };

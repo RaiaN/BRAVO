@@ -24,15 +24,8 @@ metadata:
 
 # Seedance 2.5 Prompt Optimizer
 
-## Self-update before triggering
 
-The first time this Skill is triggered in each session, the Agent must run the following command first to refresh the local Skill copy to latest, and then proceed to "## Purpose" and all subsequent workflows. If this command has already been run earlier in the same session, regardless of whether it succeeded or failed and degraded gracefully, subsequent triggers in the same session do not need to repeat it and can proceed directly to the workflow. Count the first trigger again when a new session starts.
-
-```bash
-npx --yes skills@latest update sd25-pe -y
 ```
-
-The command is fixed as shown above: write the Skill name as `sd25-pe`, and keep only the `-y` parameter so that the CLI automatically detects the global or project scope. Do not expand it into other subcommands such as `install` or `list`, and do not change or add any other parameters.
 
 Use a best-effort execution strategy:
 

@@ -1,13 +1,3 @@
-// BRAVO as a macOS app.
-//
-// The window does NOT load a static export — it boots Next.js IN-PROCESS and loads it
-// over 127.0.0.1. That is not a detail: BRAVO's entire model layer is `pages/api/*`
-//, so the app needs a live Node server behind it. A static export would ship the
-// shell with nothing to talk to.
-//
-// Same approach as the ModelArk starter kit; the differences are BRAVO's macOS chrome,
-// where the API key is read from, and making `skills/` reachable once packaged.
-
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
@@ -17,22 +7,12 @@ const next = require('next');
 
 const isDev = !app.isPackaged;
 
-// NODE_USE_SYSTEM_CA applies to the packaged app too — its API routes make the same
-// outbound TLS calls. But Node builds its root certificate store from the ENVIRONMENT at
-// startup, before any of this file runs, so assigning process.env here does nothing at
-// all: the packaged app failed every Ark call with UNABLE_TO_GET_ISSUER_CERT_LOCALLY
-// while appearing to have the variable set.
-//
-// The only way to actually get it is to be launched with it. So: probe once, and if TLS
-// really is intercepted, relaunch with the variable in the environment the child
-// inherits. On a network with an ordinary certificate chain the probe succeeds and
-// nothing restarts.
 const CERT_ERR = /UNABLE_TO_GET_ISSUER_CERT|SELF_SIGNED_CERT|CERT_|unable to (get|verify)/i;
 
 const tlsIsIntercepted = async () => {
-  if (process.env.NODE_USE_SYSTEM_CA) return false;          // already launched with it
+  if (process.env.NODE_USE_SYSTEM_CA) return false;
   const base = process.env.MODELARK_API_BASE_URL;
-  if (!base) return false;                                   // nothing to reach anyway
+  if (!base) return false;
   try {
     await fetch(base, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
     return false;
@@ -42,11 +22,6 @@ const tlsIsIntercepted = async () => {
   }
 };
 
-// ---- credentials -----------------------------------------------------------------
-// A distributed .app must not carry anyone's Ark key, so `.env.local` is NOT bundled.
-// The packaged app reads it from the user's own data directory; in development the repo
-// copy is used. Loaded into process.env BEFORE Next prepares — Next never overwrites a
-// variable that is already set, so this layer wins.
 const loadEnv = () => {
   const candidates = isDev
     ? [path.join(app.getAppPath(), '.env.local')]
@@ -55,7 +30,7 @@ const loadEnv = () => {
     if (!fs.existsSync(file)) continue;
     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
       const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
-      if (!m) continue;                                  // comment or blank
+      if (!m) continue;
       const value = m[2].trim().replace(/^["']|["']$/g, '');
       if (value && process.env[m[1]] === undefined) process.env[m[1]] = value;
     }
@@ -85,13 +60,8 @@ const createMainWindow = async () => {
     height: 820,
     minWidth: 720,
     minHeight: 480,
-    // The shell reserves a 38px strip at the top (--chrome-h) with nothing interactive
-    // in it. Hide the title bar and drop the traffic lights into that strip: the rail
-    // and the thread header run to the top edge, the way Claude's desktop app does.
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 12 },
-    // Paint the canvas colour immediately so the window does not flash white before the
-    // first render.
     backgroundColor: dark ? '#262624' : '#faf9f5',
     show: false,
     webPreferences: {
@@ -103,7 +73,6 @@ const createMainWindow = async () => {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  // Anything that is not this app opens in the real browser, not in a chrome-less window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -116,11 +85,7 @@ const createMainWindow = async () => {
 
   const appDir = app.getAppPath();
 
-  // `pages/api/film/skills.js` resolves the library as `process.cwd()/skills`
-  // (the FOLDER is the source of truth). A launched .app inherits whatever cwd the
-  // Finder had — usually `/` — so without this the skills library is silently empty.
-  // The kit is unchanged; the host moves to meet it.
-  try { process.chdir(appDir); } catch { /* fall through — skills will report empty */ }
+  try { process.chdir(appDir); } catch { }
 
   const port = await findOpenPort(3000);
   nextServer = next({ dev: false, dir: appDir });
@@ -144,18 +109,15 @@ app.on('activate', () => {
 app.whenReady().then(async () => {
   const envFile = loadEnv();
 
-  // loadEnv() must run first — the probe needs MODELARK_API_BASE_URL.
   if (await tlsIsIntercepted()) {
     console.warn('[bravo] TLS is intercepted on this network — relaunching with NODE_USE_SYSTEM_CA=1');
-    process.env.NODE_USE_SYSTEM_CA = '1';                    // inherited by the child
+    process.env.NODE_USE_SYSTEM_CA = '1';
     app.relaunch();
     app.exit(0);
     return undefined;
   }
 
   if (!envFile) {
-    // Not fatal: the transport kit's routes accept a per-request apiKey and
-    // /api/film/config reports `hasServerKey: false`, so the app runs key-less.
     console.warn(`[bravo] no .env.local found — expected at ${isDev ? app.getAppPath() : app.getPath('userData')}`);
   }
   return createMainWindow();

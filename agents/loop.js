@@ -1,12 +1,3 @@
-// THE TURN ENGINE.
-//
-// Responsibility, exactly one: run one turn of one already-routed thread. It reaches
-// everything through three seams — an agent module, the tool registry, and state access
-// (get/apply) — and imports no agent. See docs/ARCHITECTURE.md.
-//
-// Agents run concurrently, so a turn never holds a snapshot of the project and writes it
-// back; the later writer would erase the other agent's work.
-
 import { appendMessage, setThreadStatus, threadById } from '../state/project.js';
 import { mergeChanges } from '../state/merge.js';
 import { gateCall, parseReply, retryPrompt } from './protocol.js';
@@ -16,7 +7,7 @@ import { DEFAULT_GUARDS, makeThrashGuard, runGuards } from './guards.js';
 import { transcriptFor } from './transcript.js';
 import { requireSkillLine } from '../utils/film/skills.js';
 
-export const MAX_STEPS = 6;      // tool rounds per turn, before the agent must report
+export const MAX_STEPS = 6;
 
 export const runTurn = async ({ client, threadId, get, apply, modelId = null }) => {
   const p = () => get();
@@ -24,10 +15,8 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
   const status = (s) => apply((prev) => setThreadStatus(prev, threadId, s));
 
   const thread0 = threadById(p(), threadId);
-  if (!thread0) return;                                   // unknown id → nothing
+  if (!thread0) return;
 
-  // An unknown or switched-off kind resolves to NOTHING and says which it was — it is
-  // never quietly replaced by another agent.
   const agent = agentFor(thread0.kind);
   if (!agent) {
     push({ role: 'agent', text: `I cannot run: ${explainMissing(thread0.kind)}.` });
@@ -38,7 +27,7 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
   const system = agent.system();
   const guards = [...DEFAULT_GUARDS, ...(agent.guards || [])];
   const thrash = makeThrashGuard();
-  let rendered = false;          // did a gated tool actually return something this turn?
+  let rendered = false;
 
   status('working');
 
@@ -47,11 +36,9 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
       const thread = threadById(p(), threadId);
       const prompt = [agent.context(p(), thread), '', transcriptFor(thread)].filter(Boolean).join('\n');
 
-      // ---- plan ---------------------------------------------------------------------
       let { content } = await client.reason({ prompt, systemPrompt: system, modelId });
       let { prose, calls, errors } = parseReply(content);
 
-      // ONE retry, quoting the exact fault. Not "try again" — the parse error itself.
       if (errors.length && !calls.length) {
         const retry = await client.reason({
           prompt: `${prompt}\n\nYOUR REPLY:\n${content}\n\n${retryPrompt(errors)}`,
@@ -66,7 +53,6 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
         }
       }
 
-      // ---- report -------------------------------------------------------------------
       if (prose) {
         push({ role: 'agent', text: prose });
         runGuards(guards, { prose, calls, rendered, thread, agent })
@@ -78,25 +64,19 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
         return;
       }
 
-      // ---- act ----------------------------------------------------------------------
       for (const call of calls) {
         const gate = gateCall(call, agent.tools, TOOLS);
         if (!gate.ok) {
           push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: { kind: 'error', error: gate.reason }, approved: true, cost: 0 } });
-          continue;                                        // refused, recorded, visible
+          continue;
         }
 
         const tool = TOOLS[call.tool];
 
-        // GATED: real money. NOTHING IS SENT FROM AN UNAPPROVED CARD. The call
-        // becomes a card showing the exact prompt and ordered references, and the turn
-        // stops so a person can decide.
         if (tool.gated) {
           const t = threadById(p(), threadId);
           const { takesCap, spentTakes } = t.budget;
           if (spentTakes >= takesCap) {
-            // : an agent that reaches its cap STOPS and reports. It does not ask to
-            // continue in a loop.
             push({ role: 'agent', text: `I have used this thread's budget of ${takesCap} render${takesCap === 1 ? '' : 's'}. Raise the cap if you want more.` });
             status('needs-you');
             return;
@@ -108,15 +88,11 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
           }
           push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, card: prepared.card, output: null, approved: false, cost: 0 } });
           status('needs-you');
-          return;                                          // the turn waits for a person
+          return;
         }
 
-        // ---- observe -----------------------------------------------------------------
-        // The tool computes against a snapshot; only what it CHANGED is laid onto the live
-        // project, so a concurrent run in another thread is not overwritten.
         const snapshot = p();
         // eslint-disable-next-line no-await-in-loop -- calls are ordered on purpose: each
-        // one sees the state the previous left behind.
         const result = await tool.run({
           input: call.input,
           project: snapshot,

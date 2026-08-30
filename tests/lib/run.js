@@ -1,14 +1,3 @@
-// THE AGENT RUNNER — layer 2 of docs/TESTING.md.
-//
-// Each case goes through the REAL loop against the real reasoner. Assertions are
-// structural, never wording: a differently-phrased report is not a regression, a call to
-// a tool the agent does not hold is. Prompt quality goes into the report for a person to
-// judge — no machine check will tell you a prompt is good.
-//
-// node tests/lib/run.js              gated tools stubbed, nothing spent
-// node tests/lib/run.js --spend      actually renders
-// node tests/lib/run.js router       one agent only
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +9,7 @@ import { applyDeployModels } from '../../utils/film/suiteConfig.js';
 import { parseReply } from '../../agents/protocol.js';
 import { route } from '../../agents/router.js';
 import { enabledAgents } from '../../agents/registry.js';
-import '../../agents/index.js';                       // registers the roster
+import '../../agents/index.js';
 import { advance } from '../../agents/session.js';
 
 import { gates, assertNoSpend } from './gates.js';
@@ -55,8 +44,6 @@ const runRouterCase = async (client, c) => {
 
 const runShotCase = async (client, c) => {
   const { project, threadId } = seedProject(c.film || [{ title: '' }]);
-  // The loop now reads and mutates through get/apply so concurrent agents cannot clobber
-  // one another; the harness supplies the same two functions.
   let p = appendMessage(project, threadId, { role: 'user', text: c.input });
   await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
 
@@ -67,12 +54,10 @@ const runShotCase = async (client, c) => {
   const errored = toolMsgs.filter((m) => m.tool.output?.kind === 'error');
 
   const fails = [];
-  // row for this kind — not a frozen copy of what it held in Phase A.
   const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.shot);
   if (bad) fails.push(bad);
   (c.expect.tools || []).forEach((t) => { if (!used.includes(t)) fails.push(`expected a "${t}" call, got: ${used.join(', ') || 'none'}`); });
   (c.expect.noTools || []).forEach((t) => { if (used.includes(t)) fails.push(`must NOT have called "${t}"`); });
-  // A gated call must produce a CARD and spend nothing until a person approves it.
   if (c.expect.promptOnlyViaCompose) {
     const wroteAPrompt = toolMsgs.some((m) => m.tool.name === 'write' && m.tool.input?.prompt !== undefined && m.tool.output?.kind !== 'error');
     if (wroteAPrompt) fails.push('violated: a prompt was set through write, outside the bound spec');
@@ -120,7 +105,6 @@ const runComposeCase = async (client, c) => {
     fails.push(`did not compose: ${out.error || out.kind}`);
     return { fails, detail: out };
   }
-  // The gates again, from outside the tool — proving they held, not that they ran.
   const refs = (c.shot.refs || []).length;
   const problems = composeGates(out.prompt, { refCount: refs, dialogue: c.dialogue || [] });
   if (problems.length) fails.push(`saved a prompt that fails its own gates: ${problems.join(' / ')}`);
@@ -138,15 +122,12 @@ const main = async () => {
     process.exit(2);
   }
 
-  // Give the kit's browser-shaped code an origin before anything calls it.
   installRelativeFetch(client.base);
 
-  // The browser hydrates the model table from this route on boot; Node must too, or every
-  // slot looks unconfigured and the wrong skill binds.
   try {
     const cfg = await (await fetch(`${client.base}/api/film/config`)).json();
     if (cfg?.models) applyDeployModels(cfg.models);
-  } catch { /* reported by serverUp above */ }
+  } catch { }
 
   const suites = [
     { dir: 'router', run: runRouterCase },

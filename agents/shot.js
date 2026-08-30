@@ -1,4 +1,3 @@
-// THE SHOT AGENT — "make this shot good".
 import { defineAgent } from './registry.js';
 import { describeTools, TOOLS_BY_KIND } from './tools/index.js';
 import { PROTOCOL_PROMPT } from './protocol.js';
@@ -7,8 +6,6 @@ import { filmRows, insertShot, subjectOf } from '../state/project.js';
 
 export const SHOT_TOOLS = TOOLS_BY_KIND.shot;
 
-// thread memory: the subject, `look`, and the neighbouring shots' titles and end
-// states. Built fresh each turn so the agent never reasons from a stale film.
 export const shotContext = (project, thread) => {
   const rows = filmRows(project);
   const i = rows.findIndex((r) => r.shot.id === thread.subjectId);

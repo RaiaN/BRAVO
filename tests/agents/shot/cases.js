@@ -1,6 +1,3 @@
-// SHOT AGENT — at least five inputs (docs/TESTING.md).
-// `film` seeds the project before the message; `expect.tools` are calls that MUST appear.
-
 export const agent = 'shot';
 
 export const cases = [
@@ -15,9 +12,6 @@ export const cases = [
     name: 'ordinary · states the order correctly',
     film: [{ title: 'the ridge' }, { title: 'dog breaks' }, { title: 'the collision' }],
     input: 'what order are the shots in right now?',
-    // NOT `tools: ['read']`. hands the agent the whole film every turn, so answering
-    // from context is correct and calling a tool to learn what it already knows is waste.
-    // What matters is that the answer is RIGHT — assert the order, not the ceremony.
     expect: { saysInOrder: ['the ridge', 'dog breaks', 'the collision'] },
     why: 'the order IS the film, so the agent must state it correctly — by any means',
   },
