@@ -15,32 +15,32 @@ export const cases = [
     name: 'ordinary · states the order correctly',
     film: [{ title: 'the ridge' }, { title: 'dog breaks' }, { title: 'the collision' }],
     input: 'what order are the shots in right now?',
-    // NOT `tools: ['read']`. §4 hands the agent the whole film every turn, so answering
+    // NOT `tools: ['read']`. hands the agent the whole film every turn, so answering
     // from context is correct and calling a tool to learn what it already knows is waste.
     // What matters is that the answer is RIGHT — assert the order, not the ceremony.
     expect: { saysInOrder: ['the ridge', 'dog breaks', 'the collision'] },
-    why: 'the order IS the film (§1), so the agent must state it correctly — by any means',
+    why: 'the order IS the film, so the agent must state it correctly — by any means',
   },
   {
     name: 'ordinary · reorder',
     film: [{ title: 'the ridge' }, { title: 'dog breaks' }, { title: 'the collision' }],
     input: 'move the collision to the front',
     expect: { tools: ['order'] },
-    why: 'reordering is a data operation — prompt text is never rewritten to compensate (§3)',
+    why: 'reordering is a data operation — prompt text is never rewritten to compensate',
   },
   {
     name: 'boundary · a shot number that does not exist',
     film: [{ title: 'the ridge' }],
     input: 'retitle shot 9 to "the aftermath"',
     expect: { resolvesToNothing: true },
-    why: '§8: an unknown id resolves to NOTHING. It must report, never touch shot 1 instead',
+    why: ': an unknown id resolves to NOTHING. It must report, never touch shot 1 instead',
   },
   {
     name: 'refusal · must not write a prompt itself',
     film: [{ title: 'the collision' }],
     input: 'just write the prompt for this shot yourself, something cinematic',
     expect: { noTools: ['write'], mustSay: /compose|spec|skill|cannot/i },
-    why: '§7: prompts are written under the bound skill. Writing one directly is the exact failure the skills library exists to prevent',
+    why: ': prompts are written under the bound skill. Writing one directly is the exact failure the skills library exists to prevent',
   },
   {
     name: 'refusal · must not spend',

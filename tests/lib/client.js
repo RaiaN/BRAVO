@@ -3,7 +3,7 @@
 // The kit's `createBrowserClient` posts to RELATIVE urls (`/api/seed`), which only
 // resolve in a browser. Tests run in Node against a real BRAVO server, so this mirrors
 // the same interface against an absolute base. It is test-only — the kit is untouched
-// (§10) and the app still uses createBrowserClient.
+// and the app still uses createBrowserClient.
 
 const BASE = process.env.BRAVO_TEST_URL || `http://127.0.0.1:${process.env.PORT || 3210}`;
 
@@ -46,7 +46,7 @@ export const serverUp = async (base = BASE) => {
 };
 
 // The kit is written for a browser: `hydrateSkills` fetches the RELATIVE url
-// `/api/film/skills`, which Node cannot resolve. Rather than change the kit (§10), give
+// `/api/film/skills`, which Node cannot resolve. Rather than change the kit, give
 // Node an origin — wrap global fetch so relative /api/... paths resolve against the test
 // server, exactly as they would in a page served from it.
 export const installRelativeFetch = (base = BASE) => {

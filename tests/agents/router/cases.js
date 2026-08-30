@@ -15,13 +15,13 @@ export const cases = [
     name: 'ordinary · an edit',
     input: 'take the take I just rendered and make the ending land harder, trim the tail',
     expect: { kind: 'edit' },
-    why: 'operates on an existing take — §4 edit row',
+    why: 'operates on an existing take — edit row',
   },
   {
     name: 'ordinary · a bible entry',
     input: 'I want a reference plate for the wolf so every shot draws the same animal',
     expect: { kind: 'bible' },
-    why: 'consistency is attachment (§8) — this is a plate, not a shot',
+    why: 'consistency is attachment — this is a plate, not a shot',
   },
   {
     name: 'boundary · storyboard vs shot',
@@ -33,7 +33,7 @@ export const cases = [
     name: 'ambiguity · must ask, never guess',
     input: 'hey',
     expect: { ask: true },
-    why: '§8 forbids substituting a default. Guessing a kind here latches the thread wrongly, and latching is one-way',
+    why: 'substituting a default. Guessing a kind here latches the thread wrongly, and latching is one-way',
   },
   {
     name: 'ambiguity · a question about the tool itself',

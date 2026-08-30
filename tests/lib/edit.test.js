@@ -78,7 +78,7 @@ test('an edit task sends NO ratio and NO duration, but keeps resolution', async 
   assert.equal(body.resolution, '720p', 'resolution IS honoured by an editing task');
 });
 
-test('an edit attaches the source take and sends the prompt verbatim (§3, §8)', async () => {
+test('an edit attaches the source take and sends the prompt verbatim', async () => {
   const { project, shotId, takeId } = seed();
   const thread = { id: 't', kind: 'edit', subjectId: shotId, messages: [], budget: {} };
   const { card } = TOOLS.edit.prepare({ input: { shot: shotId, take: takeId }, project, thread });

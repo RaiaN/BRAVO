@@ -4,7 +4,7 @@
 ships with a folder under `tests/agents/<kind>/` that runs it against **at least five
 different inputs**. No agent merges without one.
 
-This is not coverage theatre. §8 requires that *"every LLM promise needs a code gate — a
+This is not coverage theatre. Every model promise needs a code gate — *"a
 deterministic check, a retry, a visible report."* An agent is one long LLM promise. These
 tests are that gate, run on purpose instead of in production.
 
@@ -62,7 +62,7 @@ includes:
 - **a boundary** — the longest, the most refs, the cap;
 - **an ambiguity** — where the honest answer is to ask, not to guess;
 - **a case that must be refused** — an unbound slot, an unknown id, an out-of-range
-  citation. §8: an unknown id resolves to nothing, never a default;
+  citation. An unknown id resolves to nothing, never a default;
 - **a regression** — every bug found in the field becomes a sixth case, permanently.
 
 ## The gates, per agent
@@ -70,13 +70,13 @@ includes:
 | Agent | Deterministic assertions |
 |---|---|
 | `router` | Latches to a kind in the known list; an unrecognisable message **asks** rather than defaulting; a latched thread never re-routes |
-| `shot` | Emits parseable calls; only tools from its §4 row; an unknown shot id resolves to nothing |
-| `compose` | Citation numbers ≤ `refs.length`; dialogue lines preserved verbatim; **no duration, ratio or resolution in the prompt text** (§8); refuses outright when the slot has no bound skill |
+| `shot` | Emits parseable calls; only tools from its own row; an unknown shot id resolves to nothing |
+| `compose` | Citation numbers ≤ `refs.length`; dialogue lines preserved verbatim; **no duration, ratio or resolution in the prompt text**; refuses outright when the slot has no bound skill |
 | `edit` | Ratio and duration **absent** from the outgoing request (`InvalidParameter.TaskTypeConstraint`); resolution present and honoured; operates on a real `takeId` |
 | `bible` | Photoreal plates ride as `image_asset_id`, never a raw url; `citedBy` updates; staleness propagates |
 
 ## Reports
 
 Each run writes `tests/reports/<agent>-<timestamp>.md`: the input, the tool calls, the
-final prompt, and pass/fail per gate. §8 asks for a *visible* report, and prompt quality is
+final prompt, and pass/fail per gate. A gate needs a *visible* report, and prompt quality is
 a judgement only a person can make — the report is what they read.

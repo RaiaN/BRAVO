@@ -5,9 +5,9 @@
 // a tool the agent does not hold is. Prompt quality goes into the report for a person to
 // judge — no machine check will tell you a prompt is good.
 //
-//   node tests/lib/run.js              gated tools stubbed, nothing spent
-//   node tests/lib/run.js --spend      actually renders
-//   node tests/lib/run.js router       one agent only
+// node tests/lib/run.js              gated tools stubbed, nothing spent
+// node tests/lib/run.js --spend      actually renders
+// node tests/lib/run.js router       one agent only
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,7 +48,7 @@ const runRouterCase = async (client, c) => {
   const fails = [];
   const g = gates.routedOrAsked(decision, enabledAgents().map((a) => a.id));
   if (g) fails.push(g);
-  if (c.expect.ask && !decision.ask) fails.push(`should have ASKED, but latched to "${decision.kind}" — §8 forbids a default kind`);
+  if (c.expect.ask && !decision.ask) fails.push(`should have ASKED, but latched to "${decision.kind}" — a default kind`);
   if (c.expect.kind && decision.kind !== c.expect.kind) fails.push(`expected kind "${c.expect.kind}", got "${decision.kind ?? 'ask'}"`);
   return { fails, detail: decision };
 };
@@ -56,7 +56,7 @@ const runRouterCase = async (client, c) => {
 const runShotCase = async (client, c) => {
   const { project, threadId } = seedProject(c.film || [{ title: '' }]);
   // The loop now reads and mutates through get/apply so concurrent agents cannot clobber
-  // one another (§4); the harness supplies the same two functions.
+  // one another; the harness supplies the same two functions.
   let p = appendMessage(project, threadId, { role: 'user', text: c.input });
   await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
 
@@ -67,15 +67,15 @@ const runShotCase = async (client, c) => {
   const errored = toolMsgs.filter((m) => m.tool.output?.kind === 'error');
 
   const fails = [];
-  // §4's row for this kind — not a frozen copy of what it held in Phase A.
+  // row for this kind — not a frozen copy of what it held in Phase A.
   const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.shot);
   if (bad) fails.push(bad);
   (c.expect.tools || []).forEach((t) => { if (!used.includes(t)) fails.push(`expected a "${t}" call, got: ${used.join(', ') || 'none'}`); });
   (c.expect.noTools || []).forEach((t) => { if (used.includes(t)) fails.push(`must NOT have called "${t}"`); });
-  // A gated call must produce a CARD and spend nothing until a person approves it (§6).
+  // A gated call must produce a CARD and spend nothing until a person approves it.
   if (c.expect.promptOnlyViaCompose) {
     const wroteAPrompt = toolMsgs.some((m) => m.tool.name === 'write' && m.tool.input?.prompt !== undefined && m.tool.output?.kind !== 'error');
-    if (wroteAPrompt) fails.push('§7 violated: a prompt was set through write, outside the bound spec');
+    if (wroteAPrompt) fails.push('violated: a prompt was set through write, outside the bound spec');
   }
   if (c.expect.gatedNotSpent) {
     const gated = toolMsgs.filter((m) => TOOLS[m.tool.name]?.gated);
@@ -92,7 +92,7 @@ const runShotCase = async (client, c) => {
   }
   if (c.expect.resolvesToNothing) {
     const touched = toolMsgs.some((m) => m.tool.output?.kind === 'shot');
-    if (touched) fails.push('§8 violated: an unknown id resolved to a real shot instead of nothing');
+    if (touched) fails.push('violated: an unknown id resolved to a real shot instead of nothing');
     if (!errored.length && !/no shot|does not exist|only \d+/i.test(prose)) fails.push('never reported that the shot does not exist');
   }
   return { fails, detail: { used, prose: prose.slice(0, 400), errors: errored.map((m) => m.tool.output.error) } };
@@ -179,8 +179,7 @@ const main = async () => {
       ok ? (pass += 1) : (fail += 1);
       console.log(`  ${ok ? '✓' : '✗'} ${c.name}`);
       result.fails.forEach((f) => console.log(`      ${f}`));
-      lines.push(
-        `### ${ok ? '✓' : '✗'} ${c.name}`, '',
+      lines.push(`### ${ok ? '✓' : '✗'} ${c.name}`, '',
         `**input:** ${c.input || c.note}`, '', `**why this case exists:** ${c.why}`, '',
         '```json', JSON.stringify(result.detail, null, 1), '```', '',
         ...(ok ? [] : ['**failed:**', ...result.fails.map((f) => `- ${f}`), '']),

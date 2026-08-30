@@ -1,4 +1,4 @@
-// Concurrency: two agents working at once must not erase each other (§4).
+// Concurrency: two agents working at once must not erase each other.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { insertShot, makeProject, setShotFields } from '../../state/project.js';

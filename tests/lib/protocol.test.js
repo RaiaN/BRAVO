@@ -39,13 +39,13 @@ test('a tool outside the agent row is refused, not run', () => {
   assert.match(g.reason, /not a tool this agent holds/);
 });
 
-test('write cannot set the prompt — that is compose, under the skill (§7)', () => {
+test('write cannot set the prompt — that is compose, under the skill', () => {
   const g = gateCall({ tool: 'write', input: { prompt: 'a wolf' } }, ['write'], TOOLS);
   assert.equal(g.ok, false);
   assert.match(g.reason, /compose/);
 });
 
-test('an unknown shot reference resolves to NOTHING (§8)', () => {
+test('an unknown shot reference resolves to NOTHING', () => {
   let p = makeProject();
   p = insertShot(p, { fields: { title: 'the ridge' } }).project;
   assert.equal(resolveShot(p, 9, null), null);
@@ -58,7 +58,7 @@ test('citations outside the ref count are caught', () => {
   assert.match(gates.citationsInRange('@Image7 is the wolf', 2), /cites image 7/);
 });
 
-test('duration, ratio and resolution must never reach prompt text (§8)', () => {
+test('duration, ratio and resolution must never reach prompt text', () => {
   // The state a world model should be given — no parameters anywhere in it.
   assert.equal(gates.noParametersInPromptText('the wolf is cornered and means it'), null);
   assert.equal(gates.noParametersInPromptText('the log is wet and the dog has left the ground'), null);
@@ -82,7 +82,7 @@ test('a non-tool block is readable by the block parser', () => {
 // REGRESSION: the router returned the person's entire first sentence as the title, which
 // then truncated mid-word in every rail row. The prompt asks for five words; this is what
 // makes it true.
-test('a thread title is capped at five words (§8 gate)', async () => {
+test('a thread title is capped at five words (gate)', async () => {
   const { shortTitle } = await import('../../agents/router.js');
   assert.equal(shortTitle('the collision'), 'the collision');
   assert.equal(shortTitle('shot 3 is the collision where the wolf lands on the log'), 'shot 3 is the collision');

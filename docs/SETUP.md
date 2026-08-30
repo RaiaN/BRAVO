@@ -50,9 +50,13 @@ non-interactive script or a cron job.
 ./dev.sh build
 ```
 
+**Stop the dev server first.** `next build` writes the same `.next` directory `next dev`
+serves from, so building while dev is running clobbers it — the running server then throws
+`Cannot find module './chunks/vendor-chunks/next.js'` on every route until it is restarted.
+
 `utils/film/server/stitch.js` warns that `ffmpeg-static` is unresolved. That is by
 design: the kit imports it lazily and the `film/stitch` route returns a clear
-"install it once" error. No tool in §6 stitches, so it stays uninstalled until one does.
+"install it once" error. No tool stitches, so it stays uninstalled until one does.
 
 ## Environment
 
@@ -60,14 +64,29 @@ design: the kit imports it lazily and the `film/stitch` route returns a clear
 `GET /api/film/config` reports which slots resolve — it returns ids and booleans only,
 never key material.
 
-## Milestones
+## Default skills
 
-See [BRAVO.md](BRAVO.md) §11 for the spec's list, and [PLAN.md](PLAN.md) for what is
-actually built and what the next milestone costs.
+`.agents/skills/` ships six specs; `skills-lock.json` records where each came from and its
+hash, and the Skills screen shows that as a badge.
 
-Shipped: **M1 · Shell** — rail + thread pane + composer in the Claude layout; one project,
-one thread, no agent; messages persist across reloads. Plus the macOS package
-([DESKTOP.md](DESKTOP.md)).
+| Skill | Source | Bound to |
+|---|---|---|
+| `sd25-pe` | **vendor** (Ark) | seedance25 |
+| `sd20-pe` | **vendor** (Ark) | seedance, seedanceFast, seedanceMini |
+| `seedance-camera` | starter kit | all seedance slots |
+| `seedance-compose` | starter kit | **nothing — incompatible** |
+| `seedance-direct` | starter kit | **nothing — incompatible** |
+| `plate-pe` | authored for BRAVO | seedream, seedreamPro |
 
-Rail controls drawn but inert until their milestone are labelled with it (`M2`, `M4`,
-`M6`) rather than hidden, so the shell teaches its own final shape.
+The two unbound ones end with *"Return ONLY JSON"* and state that *"the caller's compiler
+adds structure around your text"*. BRAVO has no compiler — the prompt is the prompt — and
+`compose` saves what comes back verbatim, so binding them would store a JSON blob as the
+shot's prompt. They are installed to be read and adapted, not to ride.
+
+`plate-pe` exists because the Seedream slots had nothing bound, and BRAVO refuses to compose
+for an unbound slot. It is not a vendor document and says so; replace it from the Skills
+screen when an official Seedream spec exists.
+
+## Status
+
+See [STATUS.md](STATUS.md) for what works, what does not, and the open decisions.

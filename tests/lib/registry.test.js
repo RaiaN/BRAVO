@@ -20,7 +20,7 @@ test('defineAgent refuses an incomplete module rather than half-registering it',
   assert.throws(() => defineAgent({ id: 'broken' }), /missing/);
 });
 
-test('an unknown kind resolves to nothing, never to a default agent (§8)', () => {
+test('an unknown kind resolves to nothing, never to a default agent', () => {
   assert.equal(agentFor('nonsense'), null);
   assert.equal(agentFor(null), null);
   assert.match(explainMissing('nonsense'), /no "nonsense" agent/);

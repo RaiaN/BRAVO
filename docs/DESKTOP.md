@@ -4,7 +4,7 @@ Same shape as the ModelArk starter kit, because that shape is right for this app
 
 ## Why not a static export
 
-BRAVO's whole model layer is `pages/api/*` (§10) — the reasoner, Seedance start/poll,
+BRAVO's whole model layer is `pages/api/*` — the reasoner, Seedance start/poll,
 Seedream, audio, media, the skills library. A static export has no server, so every one
 of those routes would 404 and the app would be a shell with nothing behind it.
 
@@ -44,10 +44,10 @@ The packaged path against the current tree, without building a dmg.
 ## Two things that had to differ from the starter kit
 
 **`asar: false`.** `pages/api/film/skills.js` resolves the library as
-`process.cwd() + '/.agents/skills'` — §7's "the FOLDER is the source of truth". A
+`process.cwd() + '/.agents/skills'` — the folder is the source of truth. A
 launched `.app` inherits the Finder's cwd (usually `/`), so `electron/main.js` calls
 `process.chdir(app.getAppPath())`. `process.chdir` cannot enter an asar archive, so the
-app ships unpacked. The kit stays unchanged (§10); the host moves to meet it.
+app ships unpacked. The kit stays unchanged; the host moves to meet it.
 
 **`.env.local` is not bundled.** `"!**/.env*"` keeps it out of the build: a distributed
 `.dmg` carrying an Ark key would bill its author for every copy. The packaged app reads
