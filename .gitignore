@@ -5,7 +5,4 @@ dist/
 .env.local
 .DS_Store
 *.log
-tests/reports/agents-1787933598694.md
-tests/reports/agents-1788098006091.md
-tests/reports/agents-1788098062465.md
-tests/reports/agents-1788099200127.md
+tests/reports/
