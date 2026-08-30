@@ -13,14 +13,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { insertShot, latchThread, makeProject, threadById, appendMessage, shotById } from '../../state/project.js';
-import { TOOLS } from '../../agents/tools/index.js';
+import { TOOLS, TOOLS_BY_KIND } from '../../agents/tools/index.js';
 import { composeGates } from '../../agents/tools/compose.js';
 import { requireSkillLine } from '../../utils/film/skills.js';
 import { applyDeployModels } from '../../utils/film/suiteConfig.js';
 import { parseReply } from '../../agents/protocol.js';
 import { route } from '../../agents/router.js';
-import { runTurn } from '../../agents/loop.js';
-import { THREAD_KINDS } from '../../state/project.js';
+import { enabledAgents } from '../../agents/registry.js';
+import '../../agents/index.js';                       // registers the roster
+import { advance } from '../../agents/session.js';
+
 import { gates, assertNoSpend } from './gates.js';
 import { installRelativeFetch, serverUp, testClient } from './client.js';
 
@@ -42,9 +44,9 @@ const seedProject = (film = []) => {
 };
 
 const runRouterCase = async (client, c) => {
-  const decision = await route({ client, message: c.input });
+  const decision = await route({ client, message: c.input, choices: enabledAgents() });
   const fails = [];
-  const g = gates.routedOrAsked(decision, THREAD_KINDS);
+  const g = gates.routedOrAsked(decision, enabledAgents().map((a) => a.id));
   if (g) fails.push(g);
   if (c.expect.ask && !decision.ask) fails.push(`should have ASKED, but latched to "${decision.kind}" — §8 forbids a default kind`);
   if (c.expect.kind && decision.kind !== c.expect.kind) fails.push(`expected kind "${c.expect.kind}", got "${decision.kind ?? 'ask'}"`);
@@ -53,8 +55,10 @@ const runRouterCase = async (client, c) => {
 
 const runShotCase = async (client, c) => {
   const { project, threadId } = seedProject(c.film || [{ title: '' }]);
+  // The loop now reads and mutates through get/apply so concurrent agents cannot clobber
+  // one another (§4); the harness supplies the same two functions.
   let p = appendMessage(project, threadId, { role: 'user', text: c.input });
-  p = await runTurn({ client, project: p, threadId });
+  await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
 
   const thread = threadById(p, threadId);
   const toolMsgs = thread.messages.filter((m) => m.role === 'tool');
@@ -63,10 +67,23 @@ const runShotCase = async (client, c) => {
   const errored = toolMsgs.filter((m) => m.tool.output?.kind === 'error');
 
   const fails = [];
-  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, ['read', 'write', 'order', 'choose']);
+  // §4's row for this kind — not a frozen copy of what it held in Phase A.
+  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.shot);
   if (bad) fails.push(bad);
   (c.expect.tools || []).forEach((t) => { if (!used.includes(t)) fails.push(`expected a "${t}" call, got: ${used.join(', ') || 'none'}`); });
   (c.expect.noTools || []).forEach((t) => { if (used.includes(t)) fails.push(`must NOT have called "${t}"`); });
+  // A gated call must produce a CARD and spend nothing until a person approves it (§6).
+  if (c.expect.promptOnlyViaCompose) {
+    const wroteAPrompt = toolMsgs.some((m) => m.tool.name === 'write' && m.tool.input?.prompt !== undefined && m.tool.output?.kind !== 'error');
+    if (wroteAPrompt) fails.push('§7 violated: a prompt was set through write, outside the bound spec');
+  }
+  if (c.expect.gatedNotSpent) {
+    const gated = toolMsgs.filter((m) => TOOLS[m.tool.name]?.gated);
+    if (!gated.length) fails.push('expected a gated call to be attempted');
+    const spent = gated.filter((m) => m.tool.approved || m.tool.output);
+    if (spent.length) fails.push(`a gated tool ran WITHOUT approval: ${spent.map((m) => m.tool.name).join(', ')}`);
+    if (!gated.some((m) => m.tool.card)) fails.push('no approval card was shown before spending');
+  }
   if (c.expect.mustSay && !c.expect.mustSay.test(prose)) fails.push(`report never said why it could not: ${JSON.stringify(prose.slice(0, 160))}`);
   if (c.expect.saysInOrder) {
     const at = c.expect.saysInOrder.map((t) => prose.toLowerCase().indexOf(t.toLowerCase()));

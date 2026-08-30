@@ -91,3 +91,33 @@ test('a thread title is capped at five words (§8 gate)', async () => {
   assert.equal(shortTitle(null), '');
   assert.ok(shortTitle('supercalifragilistic expialidocious extraordinarily verbose naming').length <= 42);
 });
+
+// REGRESSION: an agent ran `write` and then reported "Shot 03 is queued for render… this
+// render job will process unattended… you will be notified automatically." Nothing was
+// queued — BRAVO has no job runner. The person then waits for something that will never
+// arrive, which is the most damaging thing a model can get wrong.
+//
+// The first version of this gate also flagged an HONEST sentence describing what a card
+// would do once approved. A gate that cries wolf gets ignored, so both directions matter.
+test('fabricated completion is caught, and honest reports are not', async () => {
+  const { fabricatedCompletion } = await import('../../agents/loop.js');
+
+  for (const lie of [
+    'Shot 03 is now queued for render. This render job will process unattended.',
+    'Processing will complete automatically. You will be notified when ready.',
+    'It is rendering in the background now.',
+  ]) {
+    assert.ok(fabricatedCompletion(lie, false), `should have caught: ${lie}`);
+  }
+
+  for (const honest of [
+    'The render card is now presented for your approval. This will render one complete take using seedance25.',
+    'I retitled shot 03 and set its duration.',
+    'I cannot render yet — this shot has no prompt.',
+  ]) {
+    assert.equal(fabricatedCompletion(honest, false), null, `false positive on: ${honest}`);
+  }
+
+  // When a render genuinely happened this turn, the same words are simply true.
+  assert.equal(fabricatedCompletion('Shot 03 is now queued for render.', true), null);
+});
