@@ -1,6 +1,6 @@
 ---
 name: seedance-compose
-description: "INCOMPATIBLE AS WRITTEN — installed for reference, deliberately bound to nothing. From the ModelArk Starter Kit. It ends 'Return ONLY JSON' and says 'the caller's compiler adds structure around your text'. BRAVO has no compiler (§8: the prompt is the prompt), and compose saves what comes back verbatim — so binding this would store a JSON blob as the shot's prompt. Its keyframe method is worth reading; adapt it into a skill that returns prose before binding."
+description: "INCOMPATIBLE AS WRITTEN — installed for reference, deliberately bound to nothing. From the ModelArk Starter Kit. It ends 'Return ONLY JSON' and says 'the caller's compiler adds structure around your text'. BRAVO has no compiler — the prompt is the prompt — and compose saves what comes back verbatim — so binding this would store a JSON blob as the shot's prompt. Its keyframe method is worth reading; adapt it into a skill that returns prose before binding."
 models: []
 ---
 

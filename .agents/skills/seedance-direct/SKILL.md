@@ -1,6 +1,6 @@
 ---
 name: seedance-direct
-description: "INCOMPATIBLE AS WRITTEN — installed for reference, deliberately bound to nothing. From the ModelArk Starter Kit. Same reason as seedance-compose: it returns JSON and assumes a caller-side compiler, which §8 forbids. The note-application method is sound; adapt it to return prose before binding."
+description: "INCOMPATIBLE AS WRITTEN — installed for reference, deliberately bound to nothing. From the ModelArk Starter Kit. Same reason as seedance-compose: it returns JSON and assumes a caller-side compiler, which BRAVO has no place for. The note-application method is sound; adapt it to return prose before binding."
 models: []
 ---
 
