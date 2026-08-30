@@ -14,27 +14,15 @@
 //   run({ input, project, thread }) → { project, output, cost }
 
 import {
-  chooseTake, filmRows, insertShot, moveShot, removeShot,
-  setShotFields, shotById, subjectOf,
+  bibleEntryById, chooseTake, filmRows, insertShot, makeBibleEntry, moveShot,
+  removeShot, setShotFields, shotById, touch,
 } from '../../state/project.js';
+import { resolveShot } from './shared.js';
+import { ROOT_CONFIG } from '../../utils/film/suiteConfig.js';
+import { compose, direct } from './compose.js';
+import { GATED } from './render.js';
 
-// Resolve what the agent called a shot. Accepts the number a person says out loud
-// ("shot 3"), the `03b` label a fork wears, or a stable id. Anything else resolves to
-// NOTHING (§8) — never "the shot we were just looking at".
-export const resolveShot = (project, ref, thread) => {
-  if (ref === undefined || ref === null || ref === '') {
-    return thread?.subjectId ? shotById(project, thread.subjectId) : null;
-  }
-  const rows = filmRows(project);
-  const s = String(ref).trim();
-  const byId = shotById(project, s);
-  if (byId) return byId;
-  const byLabel = rows.find((r) => r.label.toLowerCase() === s.toLowerCase().padStart(2, '0'));
-  if (byLabel) return byLabel.shot;
-  const n = Number(s);
-  if (Number.isInteger(n) && n >= 1 && n <= rows.length) return rows[n - 1].shot;
-  return null;
-};
+export { resolveShot };
 
 const shotView = (project, shot) => {
   const row = filmRows(project).find((r) => r.shot.id === shot.id);
@@ -92,20 +80,40 @@ const read = {
 // the final prompt and §6 gives it its own tool (`compose`/`direct`) bound to the skill.
 // Letting `write` set it would be exactly the unskilled prompt-authoring §7 forbids.
 const WRITABLE = ['title', 'model', 'duration', 'resolution', 'ratio', 'seed', 'generateAudio'];
+const SLOTS = Object.keys(ROOT_CONFIG.models);
 
 const write = {
   name: 'write',
   gated: false,
-  describe: `write — { "shot": <n|id>, ${WRITABLE.map((f) => `"${f}"`).join(', ')} }. Sets fields on a shot. It cannot set the prompt: that is compose's job, under the bound skill.`,
+  describe: `write — { "shot": <n|id>, ${WRITABLE.map((f) => `"${f}"`).join(', ')} }. Sets fields on a shot (a bible entry takes name, role, notes instead). "model" must be one of: ${SLOTS.join(', ')}. It cannot set the prompt: that is compose's job, under the bound skill.`,
   validate: (input) => {
     const keys = Object.keys(input).filter((k) => k !== 'shot');
     if (!keys.length) return 'write: nothing to set';
     if (keys.includes('prompt')) return 'write: the prompt is written by compose under the bound skill, never set directly';
-    const unknown = keys.filter((k) => !WRITABLE.includes(k));
-    if (unknown.length) return `write: cannot set ${unknown.join(', ')} — writable fields are ${WRITABLE.join(', ')}`;
+    const allowed = [...WRITABLE, 'name', 'role', 'notes'];   // the bible entry's fields
+    const unknown = keys.filter((k) => !allowed.includes(k));
+    if (unknown.length) return `write: cannot set ${unknown.join(', ')} — writable fields are ${allowed.join(', ')}`;
+    // THE SLOT MUST BE A REAL SLOT. Without this an agent can write model:"storyboard",
+    // which is accepted silently and then refuses to compose because nothing is bound to
+    // a slot that does not exist. §8: an unknown id resolves to nothing — so refuse it
+    // here, where the reason is still legible.
+    if (input.model !== undefined && !SLOTS.includes(input.model)) {
+      return `write: "${input.model}" is not a model slot. The slots are: ${SLOTS.join(', ')}`;
+    }
     return null;
   },
   run: ({ input, project, thread }) => {
+    // A bible thread owns an ENTRY, not a shot: `name`, `role` and `notes` are its fields.
+    if (thread?.kind === 'bible') {
+      const entry = bibleEntryById(project, thread.subjectId);
+      if (!entry) return { project, cost: 0, output: { kind: 'error', error: 'this thread owns no bible entry' } };
+      const fields = {};
+      ['name', 'role', 'notes'].forEach((f) => { if (input[f] !== undefined) fields[f] = input[f]; });
+      if (input.title !== undefined && input.name === undefined) fields.name = input.title;
+      if (!Object.keys(fields).length) return { project, cost: 0, output: { kind: 'error', error: 'write: a bible entry takes name, role or notes' } };
+      const next = touch({ ...project, bible: project.bible.map((b) => (b.id === entry.id ? { ...b, ...fields } : b)) });
+      return { project: next, cost: 0, output: { kind: 'plate', entry: { ...entry, ...fields } } };
+    }
     const shot = resolveShot(project, input.shot, thread);
     if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no shot matches ${JSON.stringify(input.shot ?? null)}` } };
     const fields = {};
@@ -169,14 +177,57 @@ const choose = {
   },
 };
 
-export const TOOLS = { read, write, order, choose };
+// ---- tag (§6 free) -----------------------------------------------------------------
+// Files a rendered plate into the bible so shots can cite it. Consistency is attachment
+// (§8): what `tag` records is what will RIDE in later requests.
+
+const tag = {
+  name: 'tag',
+  gated: false,
+  describe: 'tag — { "name": "the wolf", "role": "character|location|prop", "url": "<a rendered still url>", "notes": "" }. Files a plate into the bible.',
+  validate: (input) => {
+    if (!String(input.name || '').trim()) return 'tag: needs a "name"';
+    const role = input.role || 'character';
+    if (!['character', 'location', 'prop', 'frame'].includes(role)) return `tag: role must be character, location, prop or frame — got "${role}"`;
+    return null;
+  },
+  run: ({ input, project, thread }) => {
+    // Prefer the plate this thread just rendered over a url the model retyped from
+    // memory — a mistyped url is a plate that silently never rides (§8).
+    const subject = thread?.kind === 'bible' ? bibleEntryById(project, thread.subjectId) : null;
+    const shot = thread?.subjectId ? shotById(project, thread.subjectId) : null;
+    const lastStill = (shot?.stills || [])[(shot?.stills || []).length - 1];
+    const url = input.url || lastStill?.url || subject?.plateUrl || null;
+    if (!url) return { project, cost: 0, output: { kind: 'error', error: 'tag: there is no rendered plate to file yet — render one with still first' } };
+
+    const fields = {
+      name: String(input.name).trim(),
+      role: input.role || 'character',
+      plateUrl: url,
+      notes: String(input.notes || subject?.notes || ''),
+    };
+
+    if (subject) {
+      const next = touch({ ...project, bible: project.bible.map((b) => (b.id === subject.id ? { ...b, ...fields } : b)) });
+      return { project: next, cost: 0, output: { kind: 'plate', entry: { ...subject, ...fields } } };
+    }
+    const entry = makeBibleEntry(fields);
+    return {
+      project: touch({ ...project, bible: [...project.bible, entry] }),
+      cost: 0,
+      output: { kind: 'plate', entry },
+    };
+  },
+};
+
+export const TOOLS = { read, write, order, choose, compose, direct, tag, ...GATED };
 
 // §4's rows. An agent can only reach the tools its kind holds; the gate enforces it.
 export const TOOLS_BY_KIND = {
-  shot:       ['read', 'write', 'order', 'choose'],
-  edit:       ['read'],
-  storyboard: ['read', 'write', 'order'],
-  bible:      ['read', 'write'],
+  shot:       ['read', 'write', 'order', 'choose', 'compose', 'direct', 'still', 'shoot'],
+  edit:       ['read', 'choose', 'direct', 'edit', 'shoot'],
+  storyboard: ['read', 'write', 'order', 'compose', 'still'],
+  bible:      ['read', 'write', 'compose', 'still', 'tag'],
   audio:      ['read', 'write'],
 };
 

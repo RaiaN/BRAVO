@@ -1,102 +1,69 @@
-// THE TURN: plan → tools → report (§9).
+// THE TURN ENGINE (§9: "loop.js — the turn: plan → tools → report").
 //
-// One turn is one user message answered. Inside it the agent may call tools several
-// times, seeing each result before deciding the next thing — that is the loop. It ends
-// when the agent emits prose and no calls, when it hits the step cap, or when it needs
-// the person.
+// ─────────────────────────────────────────────────────────────────────────────────────
+// RESPONSIBILITY, exactly one: run ONE turn of ONE already-routed thread.
 //
-// Every LLM promise here has a code gate (§8): the reply is parsed, each call is checked
-// against the agent's own tool row, and a reply that does not parse is retried ONCE with
-// the exact fault quoted back. A second failure is reported, not smoothed over.
+// It owns:      the plan→act→observe cycle, the reasoner call and its one retry, parsing,
+//               enforcing the agent's tool row, turning a gated call into an approval
+//               card, budget, thrash detection, and running the output guards.
+// It does NOT:  know which agents exist, what any of them believes, how a thread acquires
+//               a subject, what a tool does, when to route, or what the UI shows.
+//
+// Everything it needs arrives through three seams: an AGENT MODULE (registry.js), a TOOL
+// REGISTRY (tools/index.js), and STATE ACCESS (`get`/`apply`). Adding an agent, a tool or
+// a guard therefore never touches this file — which is the whole point of the split.
+// ─────────────────────────────────────────────────────────────────────────────────────
+//
+// §4 has agents running independently "while you work in another thread", so a turn never
+// holds a snapshot of the project and writes it back — the later writer would erase the
+// other agent's work. It reads live through `get()` and mutates through a serialized
+// `apply()`.
 
-import { appendMessage, latchThread, setThreadStatus, threadById } from '../state/project.js';
+import { appendMessage, setThreadStatus, threadById } from '../state/project.js';
+import { mergeChanges } from '../state/merge.js';
 import { gateCall, parseReply, retryPrompt } from './protocol.js';
-import { TOOLS, TOOLS_BY_KIND } from './tools/index.js';
-import { route } from './router.js';
-import { shotContext, shotSystem } from './shot.js';
+import { TOOLS } from './tools/index.js';
+import { agentFor, explainMissing } from './registry.js';
+import { DEFAULT_GUARDS, makeThrashGuard, runGuards } from './guards.js';
+import { transcriptFor } from './transcript.js';
+import { requireSkillLine } from '../utils/film/skills.js';
 
 export const MAX_STEPS = 6;      // tool rounds per turn, before the agent must report
 
-// Per-kind wiring. Phase A implements `shot`; the others latch and say so honestly rather
-// than pretending. Each entry: the system prompt, the live context, the tools it holds.
-const AGENTS = {
-  shot: { system: shotSystem, context: shotContext, tools: TOOLS_BY_KIND.shot },
-};
+export const runTurn = async ({ client, threadId, get, apply, modelId = null }) => {
+  const p = () => get();
+  const push = (msg) => apply((prev) => appendMessage(prev, threadId, msg));
+  const status = (s) => apply((prev) => setThreadStatus(prev, threadId, s));
 
-const notYet = (kind) => ({
-  system: () => `You are the ${kind} agent in BRAVO. Your implementation has not landed yet.
-Say so in one sentence, say what you WILL do when it lands, and emit no tool blocks.`,
-  context: () => '',
-  tools: [],
-});
+  const thread0 = threadById(p(), threadId);
+  if (!thread0) return;                                   // unknown id → nothing (§8)
 
-const agentFor = (kind) => AGENTS[kind] || notYet(kind);
+  // An unknown or switched-off kind resolves to NOTHING and says which it was — it is
+  // never quietly replaced by another agent (§8).
+  const agent = agentFor(thread0.kind);
+  if (!agent) {
+    push({ role: 'agent', text: `I cannot run: ${explainMissing(thread0.kind)}.` });
+    status('needs-you');
+    return;
+  }
 
-// The transcript the model sees. §4: the messages up to a cap, then a rolling summary of
-// decisions beneath that. The cap is on TURNS, not characters, so a long tool result
-// never silently evicts the thing the person actually said.
-export const transcriptFor = (thread, cap = 24) => {
-  const msgs = thread.messages;
-  const recent = msgs.slice(-cap);
-  const older = msgs.slice(0, -cap);
-  const summary = older.length
-    ? `EARLIER IN THIS THREAD (${older.length} messages, summarised): ${older
-        .filter((m) => m.role !== 'tool')
-        .slice(-12)
-        .map((m) => `${m.role}: ${String(m.text || '').slice(0, 120)}`)
-        .join(' | ')}\n\n`
-    : '';
-  const body = recent.map((m) => {
-    // "YOU ALREADY RAN", not "[tool …]". Labelled neutrally, the agent reads its own
-    // completed work as new information and second-guesses it — one observed run moved a
-    // shot and then reported "no move was needed, the sequence is unchanged".
-    if (m.role === 'tool') return `YOU ALREADY RAN ${m.tool.name} → ${JSON.stringify(m.tool.output).slice(0, 1200)}`;
-    return `${m.role === 'user' ? 'PERSON' : 'YOU'}: ${m.text}`;
-  }).join('\n');
-  return summary + body;
-};
-
-// Run one turn. `onProgress(project)` is called after every state change so the rail and
-// the transcript update live rather than all at the end.
-export const runTurn = async ({ client, project, threadId, modelId = null, onProgress = () => {} }) => {
-  let p = project;
-  const push = (msg) => { p = appendMessage(p, threadId, msg); onProgress(p); };
-  const status = (s) => { p = setThreadStatus(p, threadId, s); onProgress(p); };
-
-  let thread = threadById(p, threadId);
-  if (!thread) return p;                                  // unknown id → nothing (§8)
+  const system = agent.system();
+  const guards = [...DEFAULT_GUARDS, ...(agent.guards || [])];
+  const thrash = makeThrashGuard();
+  let rendered = false;          // did a gated tool actually return something this turn?
 
   status('working');
 
   try {
-    // ---- route, if this thread is still unisex -------------------------------------
-    if (!thread.kind) {
-      const first = [...thread.messages].reverse().find((m) => m.role === 'user');
-      const decision = await route({ client, message: first?.text || '', modelId });
-      if (decision.ask) {
-        push({ role: 'agent', text: decision.ask });
-        status('needs-you');
-        return p;                                          // stays unisex, on purpose
-      }
-      const latched = latchThread(p, threadId, decision.kind, { title: decision.title });
-      p = latched.project;
-      thread = latched.thread;
-      onProgress(p);
-      push({ role: 'tool', text: '', tool: { name: 'route', input: {}, output: { kind: 'routed', to: decision.kind, title: decision.title }, approved: true, cost: 0 } });
-    }
-
-    const agent = agentFor(thread.kind);
-    const system = agent.system();
-
-    // ---- the loop ------------------------------------------------------------------
     for (let step = 0; step < MAX_STEPS; step += 1) {
-      thread = threadById(p, threadId);
-      const prompt = [agent.context(p, thread), '', transcriptFor(thread)].filter(Boolean).join('\n');
+      const thread = threadById(p(), threadId);
+      const prompt = [agent.context(p(), thread), '', transcriptFor(thread)].filter(Boolean).join('\n');
 
+      // ---- plan ---------------------------------------------------------------------
       let { content } = await client.reason({ prompt, systemPrompt: system, modelId });
       let { prose, calls, errors } = parseReply(content);
 
-      // ONE retry, quoting the exact fault. Not "try harder" — the parse error itself.
+      // ONE retry, quoting the exact fault. Not "try again" — the parse error itself.
       if (errors.length && !calls.length) {
         const retry = await client.reason({
           prompt: `${prompt}\n\nYOUR REPLY:\n${content}\n\n${retryPrompt(errors)}`,
@@ -107,36 +74,83 @@ export const runTurn = async ({ client, project, threadId, modelId = null, onPro
         if (errors.length && !calls.length) {
           push({ role: 'agent', text: `${prose || 'I could not phrase that as a tool call.'}\n\n(${errors.length} unreadable block${errors.length === 1 ? '' : 's'} — nothing was changed.)` });
           status('needs-you');
-          return p;
+          return;
         }
       }
 
-      if (prose) push({ role: 'agent', text: prose });
-
-      // No calls → the agent has reported. The turn is over.
-      if (!calls.length) {
-        status(thread.subjectId ? 'idle' : 'needs-you');
-        return p;
+      // ---- report -------------------------------------------------------------------
+      if (prose) {
+        push({ role: 'agent', text: prose });
+        runGuards(guards, { prose, calls, rendered, thread, agent })
+          .forEach((correction) => push({ role: 'agent', text: correction }));
       }
 
+      if (!calls.length) {
+        status(threadById(p(), threadId).subjectId ? 'idle' : 'needs-you');
+        return;
+      }
+
+      // ---- act ----------------------------------------------------------------------
       for (const call of calls) {
         const gate = gateCall(call, agent.tools, TOOLS);
         if (!gate.ok) {
           push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: { kind: 'error', error: gate.reason }, approved: true, cost: 0 } });
           continue;                                        // refused, recorded, visible
         }
-        const result = TOOLS[call.tool].run({ input: call.input, project: p, thread: threadById(p, threadId) });
-        p = result.project;
+
+        const tool = TOOLS[call.tool];
+
+        // GATED (§6): real money. NOTHING IS SENT FROM AN UNAPPROVED CARD. The call
+        // becomes a card showing the exact prompt and ordered references, and the turn
+        // stops so a person can decide.
+        if (tool.gated) {
+          const t = threadById(p(), threadId);
+          const { takesCap, spentTakes } = t.budget;
+          if (spentTakes >= takesCap) {
+            // §6: an agent that reaches its cap STOPS and reports. It does not ask to
+            // continue in a loop.
+            push({ role: 'agent', text: `I have used this thread's budget of ${takesCap} render${takesCap === 1 ? '' : 's'}. Raise the cap if you want more.` });
+            status('needs-you');
+            return;
+          }
+          const prepared = tool.prepare({ input: call.input, project: p(), thread: t });
+          if (prepared.error) {
+            push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: { kind: 'error', error: prepared.error }, approved: true, cost: 0 } });
+            continue;
+          }
+          push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, card: prepared.card, output: null, approved: false, cost: 0 } });
+          status('needs-you');
+          return;                                          // the turn waits for a person
+        }
+
+        // ---- observe -----------------------------------------------------------------
+        // The tool computes against a snapshot; only what it CHANGED is laid onto the live
+        // project, so a concurrent run in another thread is not overwritten.
+        const snapshot = p();
+        // eslint-disable-next-line no-await-in-loop -- calls are ordered on purpose: each
+        // one sees the state the previous left behind.
+        const result = await tool.run({
+          input: call.input,
+          project: snapshot,
+          thread: threadById(snapshot, threadId),
+          ctx: { client, modelId, requireSkillLine },
+        });
+        apply((prev) => mergeChanges(prev, snapshot, result.project));
         push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: result.output, approved: true, cost: result.cost || 0 } });
+
+        const stop = thrash(call.tool, result.output?.kind === 'error' ? result.output.error : null);
+        if (stop) {
+          push({ role: 'agent', text: stop });
+          status('needs-you');
+          return;
+        }
       }
     }
 
     push({ role: 'agent', text: `I stopped after ${MAX_STEPS} rounds of tools without finishing. Tell me what to do next.` });
     status('needs-you');
-    return p;
   } catch (err) {
     push({ role: 'agent', text: `That failed: ${err.message}` });
     status('needs-you');
-    return p;
   }
 };

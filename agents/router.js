@@ -8,21 +8,14 @@
 // kinds, and anything else becomes a QUESTION rather than a guess. There is no default
 // kind — "never substitute a default" covers routing too.
 
-import { THREAD_KINDS } from '../state/project.js';
 import { parseBlocks } from './protocol.js';
 
-export const KIND_JOBS = {
-  shot:       'make one shot of the film good — compose its prompt, render takes, judge them',
-  edit:       'operate on an existing take — a Seedance 2.5 editing task, or extend it',
-  storyboard: 'draw the film as a storyboard image',
-  bible:      'build and keep a reference plate — a character, a location, a prop',
-  audio:      'voice, score, sound design',
-};
-
-const SYSTEM = `You route a new conversation to the right agent in BRAVO, a film studio.
+// The roster is not hardcoded here: it comes from whichever agents are REGISTERED AND
+// ENABLED, so a switched-off agent can never be routed to and a new one needs no edit.
+const systemFor = (choices) => `You route a new conversation to the right agent in BRAVO, a film studio.
 
 The agents:
-${THREAD_KINDS.map((k) => `- ${k}: ${KIND_JOBS[k]}`).join('\n')}
+${choices.map((a) => `- ${a.id}: ${a.job}`).join('\n')}
 
 Read the person's first message and answer with ONE fenced block tagged \`bravo\`:
 
@@ -44,10 +37,11 @@ Guessing is worse than asking. Answer with the block and nothing else.`;
 
 // → { kind, title } when it routed, or { ask } when it could not, or { ask } again when
 // the model returned something outside the known list. The caller latches only on `kind`.
-export const route = async ({ client, message, modelId = null }) => {
+export const route = async ({ client, message, modelId = null, choices = [] }) => {
+  const kinds = choices.map((a) => a.id);
   const { content } = await client.reason({
     prompt: message,
-    systemPrompt: SYSTEM,
+    systemPrompt: systemFor(choices),
     modelId,
     reasoningEffort: 'low',      // a one-line classification, not the heavy thinking
   });
@@ -60,11 +54,11 @@ export const route = async ({ client, message, modelId = null }) => {
 
   // THE GATE. Nothing below trusts the model's word for it.
   if (!answer) {
-    return { ask: 'I could not tell what this thread is for. Do you want to make a shot, edit a take, draw a storyboard, or build a bible entry?' };
+    return { ask: `I could not tell what this thread is for. This studio has: ${kinds.join(', ')}.` };
   }
   if (typeof answer.ask === 'string' && answer.ask.trim()) return { ask: answer.ask.trim() };
-  if (!THREAD_KINDS.includes(answer.kind)) {
-    return { ask: `I could not place that (it suggested "${answer.kind ?? 'nothing'}"). Do you want a shot, an edit, a storyboard, a bible entry, or audio?` };
+  if (!kinds.includes(answer.kind)) {
+    return { ask: `I could not place that (it suggested "${answer.kind ?? 'nothing'}"). This studio has: ${kinds.join(', ')}.` };
   }
   return { kind: answer.kind, title: shortTitle(answer.title) };
 };
