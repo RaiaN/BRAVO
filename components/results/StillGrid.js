@@ -1,5 +1,3 @@
-// Seedream stills, as a grid. One image is still a grid of one — the storyboard is the
-// same component with more panels.
 export default function StillGrid({ stills = [] }) {
   const list = stills.filter((s) => s?.url);
   if (!list.length) return null;

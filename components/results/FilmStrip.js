@@ -1,5 +1,3 @@
-// The film, rendered as the ordered list it is (inline and visual, never a wall of
-// text where a picture is the answer). Forks sit indented under their parent.
 import { STATES } from '../../state/project';
 
 export default function FilmStrip({ shots = [] }) {

@@ -2,13 +2,6 @@ import { filmRows, projectSpend, STATES, stateOf, threadForSubject, unlatchedThr
 import { useEffect, useState } from 'react';
 import { allAgents, isEnabled, setEnabled } from '../agents';
 
-// THE RAIL — project name, global links, then two sections: THE FILM (shots in
-// order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
-// thread` at the bottom.
-//
-// It is also the FLEET MONITOR: every row wears the state of its agent, so the film's
-// whole progress is legible without opening anything.
-
 const StateGlyph = ({ state }) => {
   const { glyph, label } = STATES[state] || STATES.empty;
   return (<span className={`glyph ${state}`} title={label} aria-label={label} role="img">
@@ -57,14 +50,11 @@ const ShotRow = ({ row, thread, state, open, onOpen }) => (<button
   </button>
 );
 
-// RENDERS IN FLIGHT (the rail is a fleet monitor — `⟳` working, with an ETA).
-// A Seedance take runs for minutes, so an elapsed clock is the honest ETA: it says how
-// long this one has actually been going rather than guessing when it will end.
 const Activity = ({ activity, onOpen }) => {
   const [, tick] = useState(0);
   useEffect(() => {
     if (!activity.length) return undefined;
-    const id = setInterval(() => tick((n) => n + 1), 1000);   // the clock has to move
+    const id = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [activity.length]);
 

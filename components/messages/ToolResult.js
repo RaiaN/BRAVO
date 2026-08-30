@@ -1,8 +1,3 @@
-// A tool result, INLINE AND VISUAL. Never a wall of text where a picture is the
-// answer — a film renders as a strip, a prompt as a fenced block, refs as a chip row.
-//
-// It is collapsed to one line by default: the agent's prose is the story, and the tool
-// call is the receipt underneath it. Click to see the whole thing.
 import { useEffect, useState } from 'react';
 import FilmStrip from '../results/FilmStrip';
 import PromptBlock from '../results/PromptBlock';
@@ -69,12 +64,8 @@ const Body = ({ output }) => {
 export default function ToolResult({ message }) {
   const { name, output, cost } = message.tool;
   const MEDIA = ['take', 'still', 'prompt'];
-  // : a picture is the answer. Media opens on arrival; lists stay folded.
   const [open, setOpen] = useState(MEDIA.includes(output?.kind));
 
-  // An APPROVED card mounts with output still null and fills in when the render lands, so
-  // the initial useState above sees nothing and the image arrives folded away. Open it
-  // when the output actually appears — a rendered frame nobody can see is not an answer.
   useEffect(() => {
     if (MEDIA.includes(output?.kind)) setOpen(true);
   }, [output?.kind]);

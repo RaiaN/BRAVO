@@ -1,8 +1,3 @@
-// Same-origin image proxy for CANVAS work (the motion-arrow bake): a remote TOS/Seedream
-// URL drawn into a <canvas> taints it unless the host sends CORS headers — fetching the
-// bytes server-side and re-serving them same-origin makes the pixels always readable.
-// Display never needs this (plain <img> is CORS-free); only the bake path uses it.
-
 export default async function proxyImageHandler(req, res) {
   const url = String(req.query.url || '');
   if (!/^https?:\/\//i.test(url)) {

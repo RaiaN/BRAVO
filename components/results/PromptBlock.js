@@ -1,5 +1,3 @@
-// A shot's FINAL PROMPT, shown verbatim (what the thread shows is what
-// the model receives). Monospaced and unwrapped-by-word so nothing about it looks edited.
 export default function PromptBlock({ prompt, label = 'prompt' }) {
   if (!prompt) return <p className="none">No prompt yet.<style jsx>{`.none{margin:0;color:var(--faint);font-size:13px}`}</style></p>;
   return (<div className="block">

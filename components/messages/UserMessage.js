@@ -1,11 +1,3 @@
-// A turn you typed. Claude's transcript gives the human a bubble and the agent bare
-// prose, so the two are told apart by shape before a word is read.
-//
-// `enter` marks a turn that ARRIVED while you were watching. A transcript restored from
-// the store does not animate — it was already there — and the animation never carries
-// the burden of making text visible: the bubble's own opacity is 1, so a frozen
-// animation (a hidden tab throttles them to a standstill) degrades to no motion rather
-// than to an empty thread.
 export default function UserMessage({ message, enter }) {
   return (<article className={`turn${enter ? ' enter' : ''}`} data-role="user">
       <div className="bubble">{message.text}</div>

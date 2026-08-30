@@ -94,8 +94,6 @@ export default async function assetUploadHandler(req, res) {
   const resolvedTosObjectPrefix = process.env.MODELARK_TOS_OBJECT_PREFIX;
   const resolvedTosPublicBaseUrl = process.env.MODELARK_TOS_PUBLIC_BASE_URL || '';
   const requestedAssetGroupId = String(assetGroupId || '').trim();
-  // Stable-first: an explicit request wins, then env/persisted machine id; a fresh
-  // name is generated only if this machine has never registered anything.
   const resolvedAssetGroupId = requestedAssetGroupId || getStableAssetGroupId() || getDefaultAssetGroupId(process.env.MODELARK_ASSET_GROUP_ID);
 
   if (!resolvedAccessKey || !resolvedSecretKey) {
@@ -198,8 +196,6 @@ export default async function assetUploadHandler(req, res) {
         secretKey: resolvedSecretKey,
       });
     }
-    // The group that WORKED becomes this machine's stable default (no-op churn fix:
-    // future registrations reuse it instead of minting `group-<now>-<rand>` each time).
     if (createAssetResponse?.Result?.Id) persistAssetGroupId(groupId);
 
     const assetId = createAssetResponse?.Result?.Id;

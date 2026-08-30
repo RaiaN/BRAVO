@@ -1,12 +1,6 @@
 import { TosClient } from '@volcengine/tos-sdk';
 import { requireTosRegion, getDefaultTosEndpoint, tosObjectKeyFromUrl } from '../../../utils/server/tosUpload';
 
-// Mint a fresh presigned GET link for an object this app already owns in TOS.
-// The "stable" URL preserve hands out is only truly stable when the bucket is
-// public-read; on a private bucket it 403s, and a presigned link lapses after
-// 7 days. Either way the BYTES are fine — only the link is dead. Board nodes
-// call this when a preserved image fails to load, so check-in keeps its promise.
-
 export default async function resignHandler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -23,8 +17,6 @@ export default async function resignHandler(req, res) {
 
   const tosRegion = process.env.MODELARK_TOS_REGION;
   const tosEndpoint = process.env.MODELARK_TOS_ENDPOINT;
-  // Trust an explicit objectKey; otherwise recover it from the stored url —
-  // tosObjectKeyFromUrl only matches OUR bucket, so we never sign foreign urls.
   const key = String(objectKey || '').trim() || tosObjectKeyFromUrl(url, {
     tosPublicBaseUrl: process.env.MODELARK_TOS_PUBLIC_BASE_URL,
     tosEndpoint,

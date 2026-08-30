@@ -1,12 +1,7 @@
 import { stitchShots } from '../../../utils/film/server/stitch';
 
-// Assemble the approved Auto Director shots into a single MP4 (the final cut).
-// Thin HTTP wrapper over utils/film/server/stitch.js (shared with the Service API's
-// `autoDirector` run): downloads each shot, concatenates with ffmpeg, re-hosts to
-// TOS, and returns a presigned (browser-playable) URL + an asset id.
-
 export const config = {
-  api: { bodyParser: { sizeLimit: '4mb' } }, // only shot URLs come in; the video is built server-side
+  api: { bodyParser: { sizeLimit: '4mb' } },
 };
 
 export default async function stitchHandler(req, res) {

@@ -1,8 +1,3 @@
-// THE APPROVAL CARD. A gated call renders THE EXACT PROMPT and THE EXACT ORDERED
-// REFERENCES before spending, with approve / edit / cancel.
-//
-// : "Show the full prompt before spending." Not a summary, not the first line — the
-// whole thing, scrollable, exactly as it will be sent.
 import { useState } from 'react';
 import PromptBlock from '../results/PromptBlock';
 import RefChips from '../results/RefChips';

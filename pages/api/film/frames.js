@@ -1,8 +1,3 @@
-// Extract frames at specific TIMESTAMPS from a board video — the Take Viewer's
-// 📷 / ⏮ / 📝 backbone (exact playhead frame, first frame, the still the describe
-// call reads). Each frame comes back as a base64 data URL; the canvas lands it as
-// a normal image node and the media store checks it in seconds later.
-
 import fs from 'fs';
 import { storeKeyFromUrl, readStoreBytes, checkInBytes } from '../../../utils/server/mediaStore';
 import os from 'os';
@@ -10,7 +5,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '4mb' } }, // only a video URL + timestamps come in
+  api: { bodyParser: { sizeLimit: '4mb' } },
 };
 
 const MAX_FRAMES = 30;
@@ -30,9 +25,6 @@ export default async function framesHandler(req, res) {
   }
   const { url, timestamps, maxWidth } = req.body || {};
   if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url (the Take video URL) is required' });
-  // Optional downscale (poster thumbnails): a full-res frame painted at card size
-  // makes the canvas re-rasterize megapixels on every zoom tick. Extract-to-board
-  // callers omit it and keep full resolution.
   const w = Number(maxWidth);
   const scaleArgs = Number.isFinite(w) && w > 0 ? ['-vf', `scale='min(${Math.round(w)},iw)':-2`] : [];
   const ts = (Array.isArray(timestamps) ? timestamps : [])
@@ -50,15 +42,12 @@ export default async function framesHandler(req, res) {
     const inFile = path.join(dir, 'take.mp4');
     const storeKey = storeKeyFromUrl(url);
     if (storeKey) {
-      // Our own store url — read it in-process (never fetch http://<self>).
       fs.writeFileSync(inFile, (await readStoreBytes(storeKey)).buffer);
     } else {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`Could not fetch the Take (HTTP ${r.status}). Generated URLs expire — re-render it.`);
       fs.writeFileSync(inFile, Buffer.from(await r.arrayBuffer()));
     }
-    // One frame per timestamp (input-seek for speed; accurate enough on a local file).
-    // Sequential on purpose — a handful of cheap grabs, no need to fan out N ffmpegs.
     const frames = [];
     for (let i = 0; i < ts.length; i += 1) {
       const t = ts[i];
@@ -66,19 +55,17 @@ export default async function framesHandler(req, res) {
       try {
         // eslint-disable-next-line no-await-in-loop
         await runFfmpeg(ffmpegPath, ['-y', '-ss', String(t), '-i', inFile, '-frames:v', '1', ...scaleArgs, '-q:v', '3', outFile]);
-        // SOURCE-SIDE durability: the frame goes straight into the store — the client
-        // receives a stable store url, never megabytes of base64 (data: fallback on hiccup).
         let frameUrl;
         try { frameUrl = (await checkInBytes(fs.readFileSync(outFile), 'image/jpeg')).url; } // eslint-disable-line no-await-in-loop
         catch { frameUrl = `data:image/jpeg;base64,${fs.readFileSync(outFile).toString('base64')}`; }
         frames.push({ t, url: frameUrl });
-      } catch { /* skip a bad timestamp, keep the rest */ }
+      } catch { }
     }
     if (!frames.length) throw new Error('No frames could be extracted at the given timestamps.');
     return res.status(200).json({ frames });
   } catch (error) {
     return res.status(500).json({ error: 'Frame extraction failed', details: error.message });
   } finally {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { }
   }
 }

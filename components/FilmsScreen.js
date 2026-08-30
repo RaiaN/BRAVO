@@ -1,5 +1,3 @@
-// THE FILMS SCREEN (other global link). persists as JSON per project, so more than
-// one film can exist; this is where you move between them.
 import { deleteProject, listProjects } from '../state/project';
 
 const when = (iso) => {

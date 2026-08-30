@@ -6,8 +6,6 @@ import { CLOUD_MEDIA_PREFIX, mediaFilePath, mediaFileExists, mirrorKeyToTos } fr
 export const config = {
   api: {
     bodyParser: {
-      // Film-canvas media NEVER rides inline: store urls presign server-side, so bodies
-      // are text + urls. The limit only covers the Tools tab's local-file data: uploads.
       sizeLimit: '50mb',
     },
   },
@@ -16,8 +14,6 @@ export const config = {
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
 const isDataUrl = (value) => /^data:[^;]+;base64,/i.test(String(value || ''));
 const isAssetUrl = (value) => /^asset:\/\//i.test(String(value || '').trim());
-
-// Env → TOS credentials reader lives in tosUpload.js (shared by every route).
 
 const buildFallbackFileName = (role, contentType) => {
   const extensionMap = {
@@ -70,14 +66,8 @@ async function normalizeSeedanceContent(content) {
           : 'audio_url';
     const mediaUrl = item?.[key]?.url;
 
-    // A media-STORE url (a ★ reference clip, an extracted frame, any checked-in
-    // media). The bytes already live content-addressed in TOS (mirrored at check-in),
-    // so DON'T move them — presign the existing projects/media/<sha> object and pass
-    // Seedance the URL. Bodies stay tiny; a reference video never rides as base64.
     if (String(mediaUrl || '').includes('/api/film/media?key=')) {
       const storeKey = (/[?&]key=([a-f0-9]{16,64}\.[a-z0-9]{1,5})/.exec(mediaUrl) || [])[1];
-      // FORMAT GUARD: Seedance rejects non-mp3 reference audio — fail loudly here
-      // with the fix, never ship a request the model will bounce.
       if (item.type === 'audio_url' && storeKey && storeKey.split('.').pop().toLowerCase() !== 'mp3') {
         throw new Error(`${item.role || 'reference_audio'}: .${storeKey.split('.').pop()} is not supported by Seedance — attach an mp3 (convert the clip and re-attach).`);
       }
@@ -85,17 +75,14 @@ async function normalizeSeedanceContent(content) {
       if (storeKey && tosConfig.accessKey && tosConfig.secretKey && tosConfig.tosBucket) {
         const objectKey = `${CLOUD_MEDIA_PREFIX}/${storeKey}`;
         const head = await headTosObject({ ...tosConfig, objectKey }).catch(() => ({ exists: false }));
-        // Not mirrored yet (check-in raced / offline earlier) but on disk → mirror NOW.
         if (!head.exists && mediaFileExists(storeKey)) {
-          try { await mirrorKeyToTos(storeKey, fs.readFileSync(mediaFilePath(storeKey))); } catch { /* fall through */ }
+          try { await mirrorKeyToTos(storeKey, fs.readFileSync(mediaFilePath(storeKey))); } catch { }
         }
         if (head.exists || mediaFileExists(storeKey)) {
-          try { presigned = presignTosObject({ ...tosConfig, objectKey }); } catch { /* fall through */ }
+          try { presigned = presignTosObject({ ...tosConfig, objectKey }); } catch { }
         }
       }
       if (!presigned) {
-        // NO inline fallback — inlining only exists to STAGE to TOS, so it can never
-        // succeed where presigning failed. Fail honestly instead of shipping base64.
         throw new Error(`${item.role || item.type}: media-store object ${storeKey || '(unrecognized key)'} could not be presigned — check TOS credentials in .env.local, or re-check-in the asset.`);
       }
       stagedCount += 1;
@@ -138,8 +125,6 @@ async function normalizeSeedanceContent(content) {
       ...item,
       [key]: {
         ...(item[key] || {}),
-        // Presigned URL so Seedance can fetch it even on a private bucket
-        // (the unsigned objectUrl would 403).
         url: staged.signedUrl || staged.fetchUrl || staged.objectUrl,
       },
     };
@@ -181,9 +166,6 @@ async function seedanceHandler(req, res) {
     const staged = await normalizeSeedanceContent(payload.content);
     normalizedPayload.content = staged.content;
 
-    // Diagnose reference-image screening: print each content item's index + scheme so a
-    // `content[i].image_url … may contain sensitive information` rejection can be tied to a
-    // RAW http url (slipped past asset registration) vs a TRUSTED asset:// ref.
     console.log('[seedance] content →', (staged.content || []).map((it, i) => {
       const u = it?.image_url?.url || it?.video_url?.url || it?.audio_url?.url || '';
       const scheme = u.startsWith('asset://') ? 'ASSET' : u.startsWith('http') ? 'http' : u.startsWith('data:') ? 'data' : (it?.type || '?');
@@ -201,10 +183,6 @@ async function seedanceHandler(req, res) {
 
     const data = await response.json();
     if (!response.ok) {
-      // Surface the REAL Seedance reason AS `error` (not a generic label) — otherwise
-      // errMsg() shows "Seedance request failed" and the actionable message (e.g. a
-      // reference image that couldn't be downloaded / aged-out URL, a bad param) stays
-      // buried in details and is never seen. Also log it so the dev terminal is diagnosable.
       const seedanceMsg = data?.error?.message
         || data?.message
         || (typeof data?.error === 'string' ? data.error : null)
@@ -221,8 +199,6 @@ async function seedanceHandler(req, res) {
       assetReferenceCount: staged.assetReferenceCount,
     });
   } catch (error) {
-    // A THROW (not a Seedance rejection): content normalization (e.g. a reference that
-    // isn't a public/asset/data URL) or TOS staging failed. Surface the real message.
     console.error('[seedance] crashed —', error?.message);
     return res.status(500).json({ error: error?.message || 'Request failed' });
   }

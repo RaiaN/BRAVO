@@ -2,13 +2,6 @@ import { uploadLocalMediaToTos, parseDataUrl } from '../../../utils/server/tosUp
 import { registerAsset } from '../../../utils/film/server/registerAsset';
 import { checkInBytes } from '../../../utils/server/mediaStore';
 
-// Stage a locally-dropped/uploaded file (base64 data URL) into the user's TOS
-// bucket and return a stable public URL + an Assets-library id. Dropped assets go
-// through this so they have a real http URL plus a trusted asset:// reference —
-// the latter is what Seedance / Animate use for realistic uploaded stills (the
-// raw TOS object URL is not publicly fetchable). Seedream image refs use the
-// local base64 directly on the client, so they don't depend on either URL here.
-
 export const config = {
   api: {
     bodyParser: {
@@ -53,10 +46,6 @@ export default async function uploadHandler(req, res) {
       fallbackName: `upload-${Date.now()}.${ext}`,
       dataLabel: 'Uploaded asset',
     });
-    // SOURCE-SIDE durability: the upload's bytes go straight into the two-tier store
-    // (local + TOS mirror) and the STABLE store url is the display url from birth —
-    // no client-side check-in, nothing that can expire. The staged fetchUrl (public,
-    // else 7-day presigned) remains the fallback + the Assets-API ingest source.
     let url = staged.fetchUrl || staged.objectUrl;
     let cacheUrl = null;
     try {
@@ -65,12 +54,6 @@ export default async function uploadHandler(req, res) {
       url = cacheUrl;
     } catch (e) { console.warn('[film/upload] source check-in failed — serving the staged url:', e.message); }
 
-    // Catalogue it in the Assets library so the upload is usable as an asset://
-    // reference in Seedance / Animate. The Assets backend DOWNLOADS the URL to
-    // ingest it, so we pass the PRESIGNED url (works on a private bucket; the
-    // unsigned objectUrl would 403). Wait for it to go Active so it's animatable
-    // immediately. Images AND videos (AssetType:'Video' live-probed → Active);
-    // audio has no proven asset type and stays store-only.
     let assetId = null;
     if (contentType.startsWith('image/') || contentType.startsWith('video/')) {
       try {

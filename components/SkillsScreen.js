@@ -1,11 +1,3 @@
-// THE SKILLS SCREEN. Lists every skill: token weight, model binding, a full-text
-// editor, reset to disk, add-your-own. Dropping a folder into `skills/` makes it
-// appear here with no code change.
-//
-// This is not decoration. the bound spec outrank everything and refuses to
-// compose for an unbound slot, so the binding shown here decides whether a slot works at
-// all — and which document rides, verbatim, in every call that model makes.
-
 import { useEffect, useMemo, useState } from 'react';
 import {
   addSkill, allSkills, hydrateSkills, removeSkill, resetSkill,
@@ -28,8 +20,6 @@ export default function SkillsScreen({ onClose }) {
     fetch('/api/skills-lock')
       .then((r) => r.json())
       .then((j) => setLock(j.skills || {}))
-      // Provenance quietly vanishing would leave a vendor spec and a local one looking
-      // identical, which is the one thing this screen exists to distinguish.
       .catch((err) => setLockError(err.message));
   }, []);
   useEffect(() => { setSkills(allSkills()); }, [tick]);
@@ -37,7 +27,6 @@ export default function SkillsScreen({ onClose }) {
   const open = useMemo(() => skills.find((s) => s.id === openId) || null, [skills, openId]);
   const refresh = () => setTick((t) => t + 1);
 
-  // Which slots have nothing bound — the ones that will refuse to compose.
   const unbound = SLOTS.filter((slot) => !skills.some((s) => (s.models || []).includes(slot) && String(s.text || '').trim()));
 
   const startEdit = (s) => { setOpenId(s.id); setDraft(s.text || ''); };

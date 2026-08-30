@@ -5,30 +5,16 @@ import ToolResult from './messages/ToolResult';
 import ApprovalCard from './messages/ApprovalCard';
 import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
 
-// THE THREAD PANE — the transcript, newest at the bottom, composer pinned below.
-// No tabs inside the pane, no inspector panels, no floating windows.
-//
-// SELECTION IS IMPLICIT: this thread is the subject of everything typed here. There is
-// never a "select something first".
-
-const MAX_COMPOSER_PX = 232;   // ~8 lines, then the composer scrolls instead of growing
+const MAX_COMPOSER_PX = 232;
 
 function Composer({ onSend, subjectLabel, busy, text, setText }) {
   const ref = useRef(null);
 
-  // Grow to fit, then stop and scroll. Measured from a reset height so deleting a line
-  // shrinks it back — reading scrollHeight without the reset only ever grows.
-  //
-  // An EMPTY composer is never measured. The first layout effect can run before the
-  // frame has settled, and a scrollHeight read then comes back wildly too large — which
-  // clamps to MAX and leaves an empty box eight lines tall. Nothing needs measuring to
-  // know that no text is one line, so CSS owns the resting height and JS only ever grows
-  // it once there is content to grow around.
   const fit = () => {
     const el = ref.current;
     if (!el) return;
     if (!text) {
-      el.style.removeProperty('height');   // back to the CSS one-liner
+      el.style.removeProperty('height');
       el.style.overflowY = 'hidden';
       return;
     }
@@ -46,8 +32,6 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
   };
 
   const onKeyDown = (e) => {
-    // Enter sends; Shift+Enter is a newline. A composing IME (Japanese, Chinese, Korean)
-    // uses Enter to accept its candidate — sending there would eat the word.
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       send();
@@ -117,8 +101,6 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
   );
 }
 
-// Titles are the film's index — the seeded shot has none, so it is edited here rather
-// than left as a permanent "—". Escape abandons, Return and blur commit.
 function Title({ label, title, onRename }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -180,21 +162,16 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
   const subject = subjectOf(project, thread);
   const messages = thread?.messages || [];
 
-  // Newest at the bottom: pin the scroll there whenever a turn lands. Declared before the
-  // early return below so the hook order is the same on every render.
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, thread?.id]);
 
-  // A resize reflows the transcript taller or shorter under a fixed scrollTop, which
-  // walks the newest turn off the bottom edge. Re-pin — but only for a reader who was
-  // already at the bottom, so resizing while reading history does not yank them away.
   useEffect(() => {
     const el = scroller.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     let atBottom = true;
-    const NEAR = 48;                       // px of slack: "at the bottom" by intent
+    const NEAR = 48;
     const track = () => { atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR; };
     const repin = () => { if (atBottom) el.scrollTop = el.scrollHeight; };
     el.addEventListener('scroll', track, { passive: true });
@@ -215,19 +192,12 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
     );
   }
 
-  // Is anyone actually looking? Read at render time: a turn that arrives in a hidden tab
-  // must not depend on an animation that will not run.
   const watching = typeof document === 'undefined' || document.visibilityState === 'visible';
 
-  // The transcript as it arrived from the store. Everything in this set was already
-  // there when the thread opened, so it renders plainly; anything that appears later is
-  // a turn landing in front of you and gets the entry animation.
   if (restored.current.threadId !== thread.id) {
     restored.current = { threadId: thread.id, ids: new Set(messages.map((m) => m.id)) };
   }
 
-  // substituting a default: the label comes from this thread's own subject,
-  // and a subject the film does not hold yields no number rather than someone else's.
   const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
   const label = !thread.kind
     ? '＋'
@@ -235,8 +205,6 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
 
   const state = stateOf(project, thread);
   const live = activeFor(project, thread.id);
-  // Only THIS thread's own run blocks its composer. lets other agents work meanwhile,
-  // and a global lock would make one busy agent freeze the whole studio.
   const busy = !!running || live.length > 0;
 
   return (<main className="pane">
@@ -264,12 +232,8 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
               </p>
             </div>
           ) : messages.map((m) => {
-            // Animate only a turn that lands in front of a watching reader. A hidden tab
-            // freezes animations mid-flight, and a frozen fade-in is an invisible
-            // message — so when nobody is looking the turn simply appears.
             const enter = !restored.current.ids.has(m.id) && watching;
             if (m.role === 'tool') {
-              // An unapproved card is a decision, not a result.
               if (m.tool?.card && !m.tool.approved && !m.tool.output) {
                 return <ApprovalCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />;
               }

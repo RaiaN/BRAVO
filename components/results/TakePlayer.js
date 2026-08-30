@@ -1,5 +1,3 @@
-// A rendered take, playable inline (tool results render inline and visual — never a
-// wall of text where a picture is the answer).
 export default function TakePlayer({ take }) {
   if (!take?.url) return null;
   return (<figure className="take">

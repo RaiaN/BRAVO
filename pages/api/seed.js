@@ -28,24 +28,15 @@ async function seedHandler(req, res) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
-  // Use config-defined base URL, fallback to passed baseUrl if provided
   const endpointBase = baseUrl || CONFIG.API_BASE_URL;
   if (!endpointBase) return res.status(500).json({ error: 'MODELARK_API_BASE_URL is not configured — set it in .env.local (see .env.example).' });
-  // Honor a caller-provided model; else the env-configured reasoner — NO built-in default.
   let resolvedModelId = modelId;
   if (!resolvedModelId) {
     try { resolvedModelId = getModel('reasoner'); } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
-  // The reasoner's backend re-downloads any http(s) image we pass — and Seedream 5.0
-  // PRO outputs live on signed TOS URLs it cannot fetch (400 "Error while downloading:
-  // …dola-seedream-5-0-pro/…"). Same cure as /api/film/imagine: download each image
-  // HERE and inline it as base64, so the model never fetches anything itself.
-  // data:/asset: references pass straight through.
   const inlineImage = async (ref) => {
     if (typeof ref !== 'string') return ref;
-    // A media-STORE url (relative or absolutized) — read the store DIRECTLY in-process
-    // (disk, else the TOS mirror). Never fetch http://<self>: that breaks behind proxies.
     const storeKey = storeKeyFromUrl(ref);
     if (storeKey) {
       const { buffer, contentType } = await readStoreBytes(storeKey);
@@ -67,14 +58,10 @@ async function seedHandler(req, res) {
 
   try {
     const inlinedImages = await Promise.all(imageList.map(inlineImage));
-    // Seed 2.0 Pro family uses the /responses API + input formatting. The name-prefix
-    // heuristic can't sniff an account-scoped ep-… reasoner id, so
-    // MODELARK_REASONER_PROTOCOL=responses|chat overrides it explicitly per deployment.
     const isPro260328 = process.env.MODELARK_REASONER_PROTOCOL
       ? process.env.MODELARK_REASONER_PROTOCOL === 'responses'
       : resolvedModelId.startsWith('seed-2-0-pro');
     
-    // For seed-2-0-pro-260328, we use /responses and input formatting
     if (isPro260328) {
       const inputContent = [{ type: 'input_text', text: prompt }];
       inlinedImages.forEach(img => {
@@ -98,13 +85,9 @@ async function seedHandler(req, res) {
 
       const payload = {
           model: resolvedModelId,
-          stream: false, // Stream false for simpler REST handling in StarterKit
+          stream: false,
           input: inputMessages,
       };
-      // Seed 2.0 Pro reasoning depth is controlled by `thinking` — this endpoint
-      // rejects `reasoning_effort` as an unknown field. 'low'/unset → leave
-      // default (fast — chat assistant + one-liner helpers); 'medium'/'high' →
-      // enable thinking.
       if (reasoningEffort && reasoningEffort !== 'low') {
         payload.thinking = { type: 'enabled' };
       }
@@ -117,10 +100,6 @@ async function seedHandler(req, res) {
       });
 
       let response = await callResponses(payload);
-      // If the THINKING param itself tripped the request, retry once without it. Only
-      // when the error actually names the reasoning controls — any other 400 (e.g. a
-      // reference-download failure) surfaces immediately instead of a pointless,
-      // mislabeled retry.
       if (!response.ok && payload.thinking) {
         const firstErr = await response.text().catch(() => '');
         if (/thinking|reasoning/i.test(firstErr)) {
@@ -140,7 +119,6 @@ async function seedHandler(req, res) {
         return res.status(502).json({ error: 'API returned a non-JSON response', details: responseText.slice(0, 300) });
       }
       if (!response.ok) {
-        // Surface the ACTUAL ModelArk message, not a generic 'Request failed'.
         const apiMsg = data?.error?.message
           || data?.message
           || (typeof data?.error === 'string' ? data.error : null)
@@ -148,11 +126,6 @@ async function seedHandler(req, res) {
         return res.status(response.status).json({ error: apiMsg, details: data });
       }
       
-      // Adapt /responses output to match standard /chat/completions for frontend.
-      // With thinking enabled the output[] leads with a `reasoning` item (the model's
-      // private thinking) and the assistant `message` follows — take text from the
-      // MESSAGE only, never the reasoning, and concatenate every text part (a long
-      // JSON answer can span several parts).
       const outputItems = Array.isArray(data.output) ? data.output : [];
       const assistantText = outputItems
         .filter((item) => item?.type !== 'reasoning')
@@ -162,9 +135,6 @@ async function seedHandler(req, res) {
         .trim();
       const content = assistantText || (typeof data.output_text === 'string' ? data.output_text.trim() : '');
       if (!content) {
-        // No assistant text — surface the real envelope (its `status` /
-        // `incomplete_details` says e.g. max_output_tokens) instead of masking it as
-        // fake content the downstream JSON parser then chokes on.
         console.warn('[seed] /responses returned no assistant text:', JSON.stringify(data).slice(0, 800));
         return res.status(502).json({ error: 'Reasoning model returned no assistant text', details: data });
       }
@@ -172,7 +142,6 @@ async function seedHandler(req, res) {
       return res.status(200).json({ content, raw: data });
     }
 
-    // Standard Chat Completions logic for other models
     const messages = [
       { role: 'system', content: systemPrompt || 'You are a helpful assistant.' }
     ];
@@ -190,7 +159,6 @@ async function seedHandler(req, res) {
       messages.push({ role: 'user', content: prompt });
     }
 
-    // Construct endpoint manually since we might have custom baseUrl
     const chatEndpoint = `${endpointBase}/chat/completions`;
 
     const response = await fetch(chatEndpoint, {
@@ -221,8 +189,6 @@ async function seedHandler(req, res) {
 
     return res.status(200).json({ content });
   } catch (error) {
-    // Node's fetch buries the real network reason (ECONNRESET / ENOTFOUND / ETIMEDOUT)
-    // in error.cause — surface it, or "fetch failed" is all anyone ever sees.
     const cause = [error.cause?.code, error.cause?.message].filter(Boolean).join(' ');
     return res.status(500).json({ error: 'Request failed', details: cause ? `${error.message} (${cause})` : error.message });
   }

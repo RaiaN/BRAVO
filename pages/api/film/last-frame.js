@@ -1,9 +1,3 @@
-// Extract the FINAL frame of a rendered shot — the continuity enabler for the
-// Filming Loop: the last frame of an approved chunk (plus the bible's cast
-// anchors) seeds the next chunk's keyframe, so the world and faces carry over.
-// Returns the frame as a base64 data URL (no storage dependency; it's a
-// reference image, consumed immediately by the next generation).
-
 import fs from 'fs';
 import { storeKeyFromUrl, readStoreBytes, checkInBytes } from '../../../utils/server/mediaStore';
 import os from 'os';
@@ -11,7 +5,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '4mb' } }, // only a video URL comes in
+  api: { bodyParser: { sizeLimit: '4mb' } },
 };
 
 const runFfmpeg = (bin, args) => new Promise((resolve, reject) => {
@@ -43,7 +37,6 @@ export default async function lastFrameHandler(req, res) {
     const inFile = path.join(dir, 'shot.mp4');
     const storeKey = storeKeyFromUrl(url);
     if (storeKey) {
-      // Our own store url — read it in-process (never fetch http://<self>).
       fs.writeFileSync(inFile, (await readStoreBytes(storeKey)).buffer);
     } else {
       const r = await fetch(url);
@@ -51,9 +44,7 @@ export default async function lastFrameHandler(req, res) {
       fs.writeFileSync(inFile, Buffer.from(await r.arrayBuffer()));
     }
     const outFile = path.join(dir, 'last.jpg');
-    // Seek from the END (-sseof) and keep updating one image → the final frame.
     await runFfmpeg(ffmpegPath, ['-y', '-sseof', '-1', '-i', inFile, '-update', '1', '-frames:v', '1', '-q:v', '3', outFile]);
-    // SOURCE-SIDE durability: store url out, base64 only as a fallback.
     let frameUrl;
     try { frameUrl = (await checkInBytes(fs.readFileSync(outFile), 'image/jpeg')).url; }
     catch { frameUrl = `data:image/jpeg;base64,${fs.readFileSync(outFile).toString('base64')}`; }
@@ -61,6 +52,6 @@ export default async function lastFrameHandler(req, res) {
   } catch (error) {
     return res.status(500).json({ error: 'Last-frame extraction failed', details: error.message });
   } finally {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* tmp cleanup is best-effort */ }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { }
   }
 }

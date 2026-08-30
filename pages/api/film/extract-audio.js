@@ -1,8 +1,3 @@
-// Extract the AUDIO TRACK of a rendered Take (or any board video) — the Take Viewer's
-// 🎧 action. Returns the track as a base64 mp3 data URL (the canvas lands it as an
-// audio clip node; the media store checks it into a real file seconds later), so a
-// take's dialogue/ambience can ride as a Seedance reference or be auditioned alone.
-
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -10,7 +5,7 @@ import { spawn } from 'child_process';
 import { storeKeyFromUrl, readStoreBytes, checkInBytes } from '../../../utils/server/mediaStore';
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '4mb' }, responseLimit: false }, // a video URL in, a few MB of mp3 out
+  api: { bodyParser: { sizeLimit: '4mb' }, responseLimit: false },
 };
 
 const runFfmpeg = (bin, args) => new Promise((resolve, reject) => {
@@ -42,7 +37,6 @@ export default async function extractAudioHandler(req, res) {
     const inFile = path.join(dir, 'take.mp4');
     const storeKey = storeKeyFromUrl(url);
     if (storeKey) {
-      // Our own store url — read it in-process (never fetch http://<self>).
       fs.writeFileSync(inFile, (await readStoreBytes(storeKey)).buffer);
     } else {
       const r = await fetch(url);
@@ -53,13 +47,11 @@ export default async function extractAudioHandler(req, res) {
     try {
       await runFfmpeg(ffmpegPath, ['-y', '-i', inFile, '-vn', '-acodec', 'libmp3lame', '-q:a', '4', outFile]);
     } catch (err) {
-      // A silent render has no audio stream — say so plainly instead of an ffmpeg dump.
       if (/does not contain any stream|Stream map|no streams|Output file is empty/i.test(err.message)) {
         return res.status(422).json({ error: 'This video has no audio track.' });
       }
       throw err;
     }
-    // SOURCE-SIDE durability: store url out, base64 only as a fallback.
     let clipUrl;
     try { clipUrl = (await checkInBytes(fs.readFileSync(outFile), 'audio/mpeg')).url; }
     catch { clipUrl = `data:audio/mpeg;base64,${fs.readFileSync(outFile).toString('base64')}`; }
@@ -67,6 +59,6 @@ export default async function extractAudioHandler(req, res) {
   } catch (error) {
     return res.status(500).json({ error: 'Audio extraction failed', details: error.message });
   } finally {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* tmp cleanup is best-effort */ }
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { }
   }
 }

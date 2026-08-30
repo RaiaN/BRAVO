@@ -1,8 +1,6 @@
 import { getEndpointUrl } from '../../utils/config';
 
-// Seedream 5.0 Lite endpoint — the fallback when a request doesn't name a model.
-// The Image tab now sends the selected endpoint (Lite or Pro) in the request body.
-const DEFAULT_SEEDREAM_MODEL_ID = process.env.MODELARK_MODEL_SEEDREAM || null; // REQUIRED via env — no built-in default
+const DEFAULT_SEEDREAM_MODEL_ID = process.env.MODELARK_MODEL_SEEDREAM || null;
 
 export const config = {
   api: {
@@ -33,7 +31,6 @@ async function seedreamHandler(req, res) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
-  // NO fallbacks: model + base URL come from the request or .env — else a clear error.
   if (!model && !DEFAULT_SEEDREAM_MODEL_ID) {
     return res.status(500).json({ error: "Model 'seedream' is not configured — set MODELARK_MODEL_SEEDREAM in .env.local (see .env.example)." });
   }
@@ -46,7 +43,7 @@ async function seedreamHandler(req, res) {
 
   try {
     const payload = {
-      model: model || DEFAULT_SEEDREAM_MODEL_ID, // guarded below
+      model: model || DEFAULT_SEEDREAM_MODEL_ID,
       prompt,
       size: size || '2K',
       watermark: watermark ?? false,
@@ -55,7 +52,6 @@ async function seedreamHandler(req, res) {
 
     if (image) payload.image = image;
     
-    // Sequential Generation
     if (sequential_image_generation) {
       payload.sequential_image_generation = sequential_image_generation;
       if (sequential_image_generation === 'auto' && sequential_image_generation_options) {
@@ -63,23 +59,19 @@ async function seedreamHandler(req, res) {
       }
     }
 
-    // Optimize Prompt (5.0/4.5/4.0)
     if (optimize_prompt_options) {
-      payload.optimize_prompt = true; // arms the options block (per the Pro thinking doc)
+      payload.optimize_prompt = true;
       payload.optimize_prompt_options = optimize_prompt_options;
     }
 
-    // Output Format (5.0-lite only)
     if (output_format) {
       payload.output_format = output_format;
     }
 
-    // Guidance Scale (3.0 only)
     if (guidance_scale !== undefined && guidance_scale !== null) {
       payload.guidance_scale = guidance_scale;
     }
 
-    // Seed (3.0 only)
     if (seed !== undefined && seed !== null) {
       payload.seed = seed;
     }
@@ -102,7 +94,6 @@ async function seedreamHandler(req, res) {
       return res.status(500).json({ error: 'No image returned', details: data });
     }
 
-    // Return all images
     return res.status(200).json({ 
       images: data.data, 
       imageUrl: data.data[0].url || null 
