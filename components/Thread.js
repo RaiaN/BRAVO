@@ -3,7 +3,7 @@ import UserMessage from './messages/UserMessage';
 import AgentMessage from './messages/AgentMessage';
 import ToolResult from './messages/ToolResult';
 import ApprovalCard from './messages/ApprovalCard';
-import { STATES, stateOf, subjectOf } from '../state/project';
+import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
 
 // THE THREAD PANE (§2) — the transcript, newest at the bottom, composer pinned below.
 // No tabs inside the pane, no inspector panels, no floating windows.
@@ -178,7 +178,7 @@ function Title({ label, title, onRename }) {
   );
 }
 
-export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel }) {
+export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, running }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
   const subject = subjectOf(project, thread);
@@ -239,7 +239,10 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
     : (thread.kind === 'bible' ? '◆' : (position >= 0 ? String(position + 1).padStart(2, '0') : '—'));
 
   const state = stateOf(project, thread);
-  const busy = thread.status === 'working';
+  const live = activeFor(project, thread.id);
+  // Only THIS thread's own run blocks its composer. §4 lets other agents work meanwhile,
+  // and a global lock would make one busy agent freeze the whole studio.
+  const busy = !!running || live.length > 0;
 
   return (
     <main className="pane">
@@ -284,7 +287,12 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
               : <AgentMessage key={m.id} message={m} enter={enter} />;
           })}
 
-          {busy && (
+          {live.length > 0 ? (
+            <p className="working">
+              <span className="spin" aria-hidden="true">⟳</span>
+              {live.map((a) => `${a.tool} running at Seedance — minutes, not seconds. It keeps going if you close this tab.`).join(' ')}
+            </p>
+          ) : busy && (
             <p className="working"><span className="spin" aria-hidden="true">⟳</span> working…</p>
           )}
         </div>

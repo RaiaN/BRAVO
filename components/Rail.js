@@ -1,4 +1,5 @@
 import { filmRows, projectSpend, STATES, stateOf, threadForSubject, unlatchedThreads } from '../state/project';
+import { useEffect, useState } from 'react';
 
 // THE RAIL (§2) — project name, global links, then two sections: THE FILM (shots in
 // order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
@@ -56,6 +57,53 @@ const ShotRow = ({ row, thread, state, open, onOpen }) => (
     `}</style>
   </button>
 );
+
+// RENDERS IN FLIGHT (§2: the rail is a fleet monitor — `⟳` working, with an ETA).
+// A Seedance take runs for minutes, so an elapsed clock is the honest ETA: it says how
+// long this one has actually been going rather than guessing when it will end.
+const Activity = ({ activity, onOpen }) => {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!activity.length) return undefined;
+    const id = setInterval(() => tick((n) => n + 1), 1000);   // the clock has to move
+    return () => clearInterval(id);
+  }, [activity.length]);
+
+  if (!activity.length) return null;
+  const elapsed = (iso) => {
+    const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
+  };
+
+  return (
+    <div className="act">
+      <div className="head">Rendering</div>
+      {activity.map((a) => (
+        <button key={a.id} type="button" className="row" onClick={() => onOpen(a.threadId)}>
+          <span className="spin" aria-hidden="true">⟳</span>
+          <span className="what">{a.tool} · {a.label || 'a render'}</span>
+          <span className="el tnum">{elapsed(a.startedAt)}</span>
+        </button>
+      ))}
+      <style jsx>{`
+        .act { margin: 0 6px 4px; padding: 7px 0 3px; border-bottom: 1px solid var(--line-soft); }
+        .head {
+          padding: 0 6px 5px; font-size: 10.5px; font-weight: 600;
+          letter-spacing: .09em; text-transform: uppercase; color: var(--state-working);
+        }
+        .row {
+          display: flex; align-items: center; gap: 8px; width: 100%;
+          padding: 4px 6px; border-radius: 7px; text-align: left;
+          font-size: 12.5px; color: var(--ink-soft);
+        }
+        .row:hover { background: var(--hover); }
+        .spin { flex: none; color: var(--state-working); font-size: 11px; display: inline-block; animation: bravo-spin 1.8s linear infinite; }
+        .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .el { flex: none; font-size: 11px; color: var(--state-working); }
+      `}</style>
+    </div>
+  );
+};
 
 const Section = ({ children }) => (
   <div className="head">
@@ -116,6 +164,8 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
       </div>
 
       <div className="scroll body">
+        <Activity activity={(project.activity || []).filter((a) => a.state === 'running')} onOpen={onOpenThread} />
+
         {blank.length > 0 && (
           <>
             <Section>Unrouted</Section>
