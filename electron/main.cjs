@@ -6,7 +6,7 @@
 // shell with nothing to talk to.
 //
 // Same approach as the ModelArk starter kit; the differences are BRAVO's macOS chrome,
-// where the API key is read from, and making `.agents/skills` reachable once packaged.
+// where the API key is read from, and making `skills/` reachable once packaged.
 
 const path = require('path');
 const fs = require('fs');
@@ -116,7 +116,7 @@ const createMainWindow = async () => {
 
   const appDir = app.getAppPath();
 
-  // `pages/api/film/skills.js` resolves the library as `process.cwd()/.agents/skills`
+  // `pages/api/film/skills.js` resolves the library as `process.cwd()/skills`
   // (the FOLDER is the source of truth). A launched .app inherits whatever cwd the
   // Finder had — usually `/` — so without this the skills library is silently empty.
   // The kit is unchanged; the host moves to meet it.

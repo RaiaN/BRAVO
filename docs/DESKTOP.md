@@ -44,7 +44,7 @@ The packaged path against the current tree, without building a dmg.
 ## Two things that had to differ from the starter kit
 
 **`asar: false`.** `pages/api/film/skills.js` resolves the library as
-`process.cwd() + '/.agents/skills'` — the folder is the source of truth. A
+`process.cwd() + '/skills'` — the folder is the source of truth. A
 launched `.app` inherits the Finder's cwd (usually `/`), so `electron/main.js` calls
 `process.chdir(app.getAppPath())`. `process.chdir` cannot enter an asar archive, so the
 app ships unpacked. The kit stays unchanged; the host moves to meet it.

@@ -1,11 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 
-// SKILLS ON DISK. Every .agents/skills/<id>/SKILL.md is a skill — the FOLDER is the
+// SKILLS ON DISK. Every skills/<id>/SKILL.md is a skill — the FOLDER is the
 // source of truth, so dropping a new vendor spec in makes it appear in the library with
 // zero code changes. Frontmatter (name/description, and an optional `models:` list)
 // rides through; a skill that names no model binds to nothing until the user picks one.
-const SKILLS_DIR = path.join(process.cwd(), '.agents', 'skills');
+// The library lives in a visible `skills/` directory. `.agents/skills` is checked second
+// so an older tree still resolves — this is the only local change to the transport kit,
+// kept to one line so re-importing it is a trivial re-apply.
+const CANDIDATES = [
+  path.join(process.cwd(), 'skills'),
+  path.join(process.cwd(), '.agents', 'skills'),
+];
+const SKILLS_DIR = CANDIDATES.find((d) => fs.existsSync(d)) || CANDIDATES[0];
 
 // A deliberately small frontmatter reader: the two scalars we display plus the one list
 // we bind on. Not a YAML parser — a skill that needs more can be edited in the drawer.

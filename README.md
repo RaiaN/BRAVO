@@ -72,7 +72,7 @@ components/        rail, thread pane, messages, results
 agents/            the harness — one file per responsibility, one module per agent
 state/             the data model and persistence
 utils/film/        the ModelArk transport kit, unchanged
-.agents/skills/    prompt specs, one folder each
+skills/            prompt specs, one folder each
 ```
 
 ## Docs

@@ -12,7 +12,7 @@ components/           rail, thread pane, messages, results
 agents/               the harness (below)
 state/                the data model, persistence, concurrent merge
 utils/film/           the transport kit — talks to ModelArk. Not ours; unchanged.
-.agents/skills/       prompt specs, one folder each
+skills/               prompt specs, one folder each
 ```
 
 ## The harness

@@ -4,7 +4,7 @@
 // more model slots. When a verb runs, the card's OWN model picks its skill and the whole
 // document rides in the system prompt — no distillation, no paraphrase.
 //
-// Storage mirrors promptTemplates: DISK holds the defaults (.agents/skills/<id>/SKILL.md,
+// Storage mirrors promptTemplates: DISK holds the defaults (skills/<id>/SKILL.md,
 // served by /api/film/skills), localStorage holds the user's edits and their own skills.
 // A disk skill can be overridden and reset; a user skill can be removed outright.
 

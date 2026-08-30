@@ -39,4 +39,4 @@ and a macOS package.
    says so. Replace it from the Skills screen when an official one exists.
 4. **Packaging size.** `asar: false` costs a 598 MB bundle, because the skills library is
    resolved through `process.cwd()` and `process.chdir` cannot enter an asar archive.
-   Shipping `.agents` via `extraResources` would let asar back on.
+   Shipping `skills/` via `extraResources` would let asar back on.

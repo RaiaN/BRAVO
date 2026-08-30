@@ -6,7 +6,7 @@
       "sourceType": "bravo",
       "note": "NOT a vendor document. The Seedream slots had nothing bound, and BRAVO refuses to compose for an unbound slot. Replace with the official Seedream spec when one exists.",
       "bytes": 3555,
-      "sha256": "8e31e41d31aaf109ac0a7d1c43bb426677a9a6ce70d8b3f75c6135d678061904"
+      "sha256": "b133f7f4498989775e7040b29efb39f725855bbd16f31b3d3a6bebab44625dfb"
     },
     "sd20-pe": {
       "source": "arkdocs-en.tos-ap-southeast-1.volces.com",
@@ -34,14 +34,14 @@
       "sourceType": "starter-kit",
       "note": "UNBOUND ON PURPOSE: returns JSON and assumes a caller-side compiler, which BRAVO has no place for.",
       "bytes": 5200,
-      "sha256": "eaf3fcb64f18f008a1ce0223b44e42a9c8588d1be70b25eb98b9ae6c1f2e4655"
+      "sha256": "70cd3de1fac0ec32cab3f29b27c6214879f77c3a357593a4525c849afcb2da09"
     },
     "seedance-direct": {
       "source": "ModelArkStarterKit/skills/seedance/direct.md",
       "sourceType": "starter-kit",
       "note": "UNBOUND ON PURPOSE: same JSON/compiler contract as seedance-compose.",
-      "bytes": 3545,
-      "sha256": "dab447737803a03dbef0e0d1e108b92098f1930672c83162d728267349b33a27"
+      "bytes": 3556,
+      "sha256": "a4f7c29127d4e356e6be476d67c7b31f8d8122918d500799749a024035f49a52"
     }
   }
 }

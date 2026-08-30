@@ -1,5 +1,5 @@
 // THE SKILLS SCREEN. Lists every skill: token weight, model binding, a full-text
-// editor, reset to disk, add-your-own. Dropping a folder into `.agents/skills/` makes it
+// editor, reset to disk, add-your-own. Dropping a folder into `skills/` makes it
 // appear here with no code change.
 //
 // This is not decoration. the bound spec outrank everything and refuses to
