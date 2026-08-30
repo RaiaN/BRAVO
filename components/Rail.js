@@ -1,4 +1,4 @@
-import { filmRows, STATES, stateOf, threadForSubject, unlatchedThreads } from '../state/project';
+import { filmRows, projectSpend, STATES, stateOf, threadForSubject, unlatchedThreads } from '../state/project';
 
 // THE RAIL (§2) — project name, global links, then two sections: THE FILM (shots in
 // order, forks indented under their parent) and THE BIBLE (entries, unordered). `+ new
@@ -6,32 +6,6 @@ import { filmRows, STATES, stateOf, threadForSubject, unlatchedThreads } from '.
 //
 // It is also the FLEET MONITOR: every row wears the state of its agent, so the film's
 // whole progress is legible without opening anything.
-
-// A control that belongs to the layout but whose behaviour arrives at a later milestone.
-// Drawn at full fidelity, inert, and honest about why — a shell that hides its unbuilt
-// parts teaches the wrong shape.
-const Pending = ({ icon, label, at }) => (
-  <div className="row pending" title={`${label} — ${at}`} aria-disabled="true">
-    <span className="icon">{icon}</span>
-    <span className="label">{label}</span>
-    <span className="at">{at}</span>
-    <style jsx>{`
-      .row {
-        display: flex; align-items: center; gap: 9px;
-        padding: 6px 10px; border-radius: 7px;
-        color: var(--muted); font-size: 13.5px;
-      }
-      .pending { cursor: default; }
-      .icon { width: 16px; text-align: center; opacity: 0.75; font-size: 13px; }
-      .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .at {
-        font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase;
-        color: var(--faint); border: 1px solid var(--line-soft);
-        border-radius: 5px; padding: 0 5px; line-height: 15px;
-      }
-    `}</style>
-  </div>
-);
 
 const StateGlyph = ({ state }) => {
   const { glyph, label } = STATES[state] || STATES.empty;
@@ -98,17 +72,22 @@ const Section = ({ children }) => (
   </div>
 );
 
-export default function Rail({ project, openThreadId, onOpenThread, onNewThread, more, onToggleMore, onReset, theme, onTheme }) {
+export default function Rail({ project, openThreadId, onOpenThread, onNewThread, screen, onScreen, more, onToggleMore, onReset, theme, onTheme }) {
   const rows = filmRows(project);
   const blank = unlatchedThreads(project);
+  const spend = projectSpend(project);
 
   return (
     <nav className="rail" aria-label="Films and bible">
       <div className="brand drag">BRAVO</div>
 
       <div className="links">
-        <Pending icon="⌘" label="Films" at="M2" />
-        <Pending icon="⚙" label="Skills" at="M4" />
+        <button type="button" className={`link${screen === 'films' ? ' on' : ''}`} onClick={() => onScreen(screen === 'films' ? null : 'films')}>
+          <span className="icon" aria-hidden="true">⌘</span><span>Films</span>
+        </button>
+        <button type="button" className={`link${screen === 'skills' ? ' on' : ''}`} onClick={() => onScreen(screen === 'skills' ? null : 'skills')}>
+          <span className="icon" aria-hidden="true">⚙</span><span>Skills</span>
+        </button>
         <button type="button" className="more" onClick={onToggleMore} aria-expanded={more}>
           <span className={`caret${more ? ' down' : ''}`} aria-hidden="true">▾</span>
           <span>More</span>
@@ -174,7 +153,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         <div className="rule" />
         <Section>Bible</Section>
         {project.bible.length === 0
-          ? <p className="empty">No entries yet. Plates and their citations arrive at M8.</p>
+          ? <p className="empty">No entries yet. Ask a thread for a reference plate.</p>
           : project.bible.map((entry) => {
             const thread = threadForSubject(project, entry.id);
             return (
@@ -197,7 +176,9 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           <span className="icon" aria-hidden="true">+</span>
           <span>New thread</span>
         </button>
-        <p className="stage">Phase A · the loop</p>
+        {spend.takes > 0 && (
+          <p className="spend tnum">{spend.takes} render{spend.takes === 1 ? '' : 's'} this film</p>
+        )}
       </div>
 
       <style jsx>{`
@@ -260,10 +241,18 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         }
         .new:hover { background: var(--hover); color: var(--ink); }
         .new .icon { width: 16px; text-align: center; }
-        .stage {
+        .spend {
           margin: 6px 0 0; padding: 0 11px;
-          font-size: 10.5px; letter-spacing: 0.05em; color: var(--faint);
+          font-size: 10.5px; letter-spacing: 0.03em; color: var(--faint);
         }
+        .link {
+          display: flex; align-items: center; gap: 9px; width: 100%;
+          padding: 6px 10px; border-radius: 7px;
+          color: var(--muted); font-size: 13.5px; text-align: left;
+        }
+        .link:hover { background: var(--hover); color: var(--ink-soft); }
+        .link.on { background: var(--active); color: var(--ink); }
+        .link .icon { width: 16px; text-align: center; font-size: 13px; }
       `}</style>
     </nav>
   );

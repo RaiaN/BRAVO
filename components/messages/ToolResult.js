@@ -3,10 +3,13 @@
 //
 // It is collapsed to one line by default: the agent's prose is the story, and the tool
 // call is the receipt underneath it. Click to see the whole thing.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FilmStrip from '../results/FilmStrip';
 import PromptBlock from '../results/PromptBlock';
 import RefChips from '../results/RefChips';
+import StillGrid from '../results/StillGrid';
+import TakePlayer from '../results/TakePlayer';
+import { TOOLS } from '../../agents/tools';
 
 const summarise = (name, output) => {
   if (!output) return name;
@@ -14,6 +17,10 @@ const summarise = (name, output) => {
   if (output.kind === 'film') return `${output.shots.length} shot${output.shots.length === 1 ? '' : 's'}`;
   if (output.kind === 'shot') return output.shot ? `${output.shot.n || '—'} · ${output.shot.title || 'untitled'}` : 'a shot';
   if (output.kind === 'routed') return `this thread is a ${output.to} thread`;
+  if (output.kind === 'prompt') return `prompt written under ${output.model} · ${output.prompt.length.toLocaleString()} chars`;
+  if (output.kind === 'take') return `a take · ${output.take.model} ${output.take.resolution}`;
+  if (output.kind === 'still') return 'a still';
+  if (output.kind === 'cancelled') return 'cancelled — nothing was sent';
   if (output.kind === 'look') return 'the look';
   if (output.kind === 'bible') return `${output.entries.length} bible entr${output.entries.length === 1 ? 'y' : 'ies'}`;
   return name;
@@ -22,6 +29,21 @@ const summarise = (name, output) => {
 const Body = ({ output }) => {
   if (!output) return null;
   if (output.kind === 'film') return <FilmStrip shots={output.shots} />;
+  if (output.kind === 'take') return <TakePlayer take={output.take} />;
+  if (output.kind === 'still') return <StillGrid stills={[output.still]} />;
+  if (output.kind === 'prompt') {
+    return (
+      <div className="stack">
+        <RefChips refs={output.refs} prefix={output.refPrefix} />
+        <PromptBlock prompt={output.prompt} label={`written under ${output.model}`} />
+        <p className="gates">gates passed: {output.gatesPassed.join(' · ')}</p>
+        <style jsx>{`
+          .stack{display:flex;flex-direction:column;gap:8px}
+          .gates{margin:0;font-size:11px;color:var(--state-settled)}
+        `}</style>
+      </div>
+    );
+  }
   if (output.kind === 'shot' && output.shot) {
     return (
       <div className="stack">
@@ -47,10 +69,19 @@ const Body = ({ output }) => {
 };
 
 export default function ToolResult({ message }) {
-  const [open, setOpen] = useState(false);
   const { name, output, cost } = message.tool;
+  const MEDIA = ['take', 'still', 'prompt'];
+  // §2: a picture is the answer. Media opens on arrival; lists stay folded.
+  const [open, setOpen] = useState(MEDIA.includes(output?.kind));
+
+  // An APPROVED card mounts with output still null and fills in when the render lands, so
+  // the initial useState above sees nothing and the image arrives folded away. Open it
+  // when the output actually appears — a rendered frame nobody can see is not an answer.
+  useEffect(() => {
+    if (MEDIA.includes(output?.kind)) setOpen(true);
+  }, [output?.kind]);
   const failed = output?.kind === 'error';
-  const hasBody = ['film', 'shot', 'look'].includes(output?.kind);
+  const hasBody = ['film', 'shot', 'look', 'prompt', 'take', 'still'].includes(output?.kind);
 
   return (
     <article className={`tool${failed ? ' failed' : ''}`} data-role="tool">
@@ -58,7 +89,11 @@ export default function ToolResult({ message }) {
         <span className="dot" aria-hidden="true">{failed ? '⚠' : '·'}</span>
         <span className="name">{name}</span>
         <span className="sum">{summarise(name, output)}</span>
-        {cost > 0 && <span className="cost tnum">${cost.toFixed(2)}</span>}
+        {cost > 0 && (
+          <span className="cost tnum">
+            {cost} {TOOLS[name]?.gated ? `render${cost === 1 ? '' : 's'}` : `call${cost === 1 ? '' : 's'}`}
+          </span>
+        )}
         {hasBody && <span className={`caret${open ? ' open' : ''}`} aria-hidden="true">▾</span>}
       </button>
       {open && hasBody && <div className="body"><Body output={output} /></div>}

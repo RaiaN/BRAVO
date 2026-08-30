@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import UserMessage from './messages/UserMessage';
 import AgentMessage from './messages/AgentMessage';
 import ToolResult from './messages/ToolResult';
+import ApprovalCard from './messages/ApprovalCard';
 import { STATES, stateOf, subjectOf } from '../state/project';
 
 // THE THREAD PANE (§2) — the transcript, newest at the bottom, composer pinned below.
@@ -177,7 +178,7 @@ function Title({ label, title, onRename }) {
   );
 }
 
-export default function Thread({ project, thread, onSend, onRename, onDraft }) {
+export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
   const subject = subjectOf(project, thread);
@@ -271,7 +272,13 @@ export default function Thread({ project, thread, onSend, onRename, onDraft }) {
             // freezes animations mid-flight, and a frozen fade-in is an invisible
             // message — so when nobody is looking the turn simply appears.
             const enter = !restored.current.ids.has(m.id) && watching;
-            if (m.role === 'tool') return <ToolResult key={m.id} message={m} />;
+            if (m.role === 'tool') {
+              // An unapproved card is a decision, not a result (§6).
+              if (m.tool?.card && !m.tool.approved && !m.tool.output) {
+                return <ApprovalCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />;
+              }
+              return <ToolResult key={m.id} message={m} />;
+            }
             return m.role === 'user'
               ? <UserMessage key={m.id} message={m} enter={enter} />
               : <AgentMessage key={m.id} message={m} enter={enter} />;
