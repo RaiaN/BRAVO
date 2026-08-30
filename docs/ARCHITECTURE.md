@@ -98,7 +98,7 @@ is worse than an absent one.
 
 `{ name, input } → { output, cost }`. Every result becomes a message rendered inline.
 
-- **Free** — `read` `write` `order` `choose` `tag`. Run without asking.
+- **Free** — `read` `write` `order` `choose` `cite` `tag`. Run without asking.
 - **Metered** — `compose` `direct`. One reasoner call, no approval, no money.
 - **Gated** — `still` `shoot` `edit`. Real money. The engine turns the call into a card
   showing the exact prompt and the exact ordered references, and nothing is sent until a

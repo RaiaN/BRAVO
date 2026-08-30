@@ -1,4 +1,4 @@
-import { newId, setBibleFields, setShotFields, shotById } from '../../state/project.js';
+import { markCitationsStale, newId, setBibleFields, setShotFields, shotById } from '../../state/project.js';
 import { animate } from '../../utils/film/core/operations.js';
 import { clampResolution, imageTagOf, resDefault, videoTraits } from '../../utils/film/suiteConfig.js';
 import { resolveShot, resolveSubject } from './shared.js';
@@ -123,9 +123,10 @@ export const still = {
       ms: Date.now() - started,
       promptUsed: card.prompt,
     };
+    const prior = card.subjectKind === 'bible' ? project.bible.find((b) => b.id === card.shotId) : null;
     const next = card.subjectKind === 'bible'
-      ? setBibleFields(project, card.shotId, {
-        stills: [...(project.bible.find((b) => b.id === card.shotId)?.stills || []), still_],
+      ? setBibleFields(prior?.plateUrl ? markCitationsStale(project, card.shotId) : project, card.shotId, {
+        stills: [...(prior?.stills || []), still_],
         plateUrl: still_.url,
       })
       : setShotFields(project, card.shotId, {

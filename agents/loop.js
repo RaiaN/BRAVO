@@ -111,7 +111,8 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
       }
     }
 
-    push({ role: 'agent', text: `I stopped after ${MAX_STEPS} rounds of tools without finishing. Tell me what to do next.` });
+    const done = threadById(p(), threadId).messages.filter((m) => m.role === 'tool' && m.tool.output && m.tool.output.kind !== 'error').map((m) => m.tool.name);
+    push({ role: 'agent', text: `I stopped after ${MAX_STEPS} rounds this turn. Completed so far: ${[...new Set(done)].join(', ') || 'nothing'}. Tell me the single next step and I will take it.` });
     status('needs-you');
   } catch (err) {
     push({ role: 'agent', text: `That failed: ${err.message}` });

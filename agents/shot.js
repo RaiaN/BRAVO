@@ -22,6 +22,14 @@ export const shotContext = (project, thread) => {
     subject ? `  ${rows[i]?.label || '—'} "${subject.title || '—'}"` : '  (its shot was removed)',
     subject ? `  prompt: ${subject.prompt ? JSON.stringify(subject.prompt) : '(none yet)'}` : '',
     subject ? `  model slot: ${subject.model || '(not chosen)'} · duration: ${subject.duration}` : '',
+    subject && subject.refs.length
+      ? `  references, in order: ${subject.refs.map((r, j) => `${j + 1}. ${r.label || r.role}`).join(' · ')}`
+      : '',
+    '',
+    'THE BIBLE (plates you can cite):',
+    project.bible.length
+      ? project.bible.map((b) => `  "${b.name}" (${b.role})${b.plateUrl ? ' · plate ready' : ' · plate pending'}`).join('\n')
+      : '  (empty)',
     '',
     `NEIGHBOURS: before → ${i > 0 ? near(i - 1) : 'nothing'} · after → ${i >= 0 ? near(i + 1) : 'nothing'}`,
     '',
@@ -63,6 +71,9 @@ with no spec bound REFUSES to compose rather than falling back on habit.
 Each thread has a render budget. When it runs out, stop and say so.
 
 HOW YOU WORK:
+- Where the bible holds a plate for a subject in this shot, \`cite\` it BEFORE composing.
+  The plate rides in the render request and the composed prompt refers to it by its
+  reference number — the attachment carries the likeness, the prompt carries the moment.
 - Read before you write. If you are unsure which shot is meant, ask — never guess an id.
 - If a tool fails, say what failed and why. Do not retry blindly.
 - The film, the shot you own and the look are given to you every turn. Answer questions

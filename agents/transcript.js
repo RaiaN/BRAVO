@@ -15,6 +15,7 @@ export const transcriptFor = (thread, cap = DEFAULT_CAP) => {
 
   const body = recent.map((m) => {
     if (m.role === 'tool') return `YOU ALREADY RAN ${m.tool.name} → ${JSON.stringify(m.tool.output).slice(0, 1200)}`;
+    if (m.asset) return `PERSON UPLOADED an image: url=${m.asset.url}${m.asset.name ? ` name=${JSON.stringify(m.asset.name)}` : ''}${m.text ? ` — ${m.text}` : ''}`;
     return `${m.role === 'user' ? 'PERSON' : 'YOU'}: ${m.text}`;
   }).join('\n');
 

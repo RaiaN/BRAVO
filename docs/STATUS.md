@@ -10,6 +10,7 @@ What works, what does not, and the decisions still open.
 | Edit a video | `edit` | a Seedance 2.5 editing task on an existing take |
 | Storyboard | `storyboard` | a six-panel board |
 | Reference plate | `bible` | a plate, filed and citable |
+| Citation | `cite` on shot threads | plate attached as an ordered ref, rides the render request; prompt cites it by number |
 
 Each runs: route → compose under the bound spec → approval card showing the exact prompt →
 approve → render inline.
@@ -24,8 +25,9 @@ and a macOS package.
 - **Fork.** Sibling and next. Shot creation should move entirely to forking.
 - **The fleet view.** Several agents working at once is supported by the harness, but
   there is no screen that shows the whole fleet.
-- **Staleness.** A changed plate does not yet mark the shots citing it, so `⚠` never fires.
 - **Example shots.** Promoting takes into an evidence library agents can read.
+
+Staleness fires now: re-rendering a plate marks every shot with a chosen take citing it.
 
 ## Open decisions
 

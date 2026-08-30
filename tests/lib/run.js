@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { insertShot, latchThread, makeProject, threadById, appendMessage, shotById } from '../../state/project.js';
+import { insertShot, latchThread, makeBibleEntry, makeProject, threadById, appendMessage, shotById, touch } from '../../state/project.js';
 import { TOOLS, TOOLS_BY_KIND } from '../../agents/tools/index.js';
 import { composeGates } from '../../agents/tools/compose.js';
 import { requireSkillLine } from '../../utils/film/skills.js';
@@ -112,6 +112,45 @@ const runComposeCase = async (client, c) => {
   return { fails, detail: { model: out.model, gates: out.gatesPassed, prompt: out.prompt } };
 };
 
+const runBibleCase = async (client, c) => {
+  let p = makeProject();
+  const entry = makeBibleEntry({ name: '', role: 'character' });
+  p = touch({ ...p, bible: [entry] });
+  const threadId = p.threads[0].id;
+  p = latchThread(p, threadId, 'bible', { subjectId: entry.id, title: '' }).project;
+  for (const u of (c.uploads || [])) p = appendMessage(p, threadId, { role: 'user', text: '', asset: u });
+  p = appendMessage(p, threadId, { role: 'user', text: c.input });
+  await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
+
+  const t = threadById(p, threadId);
+  const toolMsgs = t.messages.filter((m) => m.role === 'tool');
+  const used = toolMsgs.map((m) => m.tool.name);
+  const prose = t.messages.filter((m) => m.role === 'agent').map((m) => m.text).join('\n');
+  const fails = [];
+
+  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.bible);
+  if (bad) fails.push(bad);
+  (c.expect.tools || []).forEach((x) => { if (!used.includes(x)) fails.push(`expected a "${x}" call, got: ${used.join(', ') || 'none'}`); });
+  (c.expect.noTools || []).forEach((x) => { if (used.includes(x)) fails.push(`must NOT have called "${x}"`); });
+  if (c.expect.mustSay && !c.expect.mustSay.test(prose)) fails.push(`report missing the reason: ${JSON.stringify(prose.slice(0, 160))}`);
+  if (c.expect.gatedNotSpent) {
+    const gated = toolMsgs.filter((m) => TOOLS[m.tool.name]?.gated);
+    if (!gated.length) fails.push('expected a gated call');
+    if (gated.some((m) => m.tool.approved || m.tool.output)) fails.push('a gated tool ran without approval');
+  }
+  if (c.expect.noSpend && toolMsgs.some((m) => TOOLS[m.tool.name]?.gated)) fails.push('spent a render where the upload sufficed');
+  if (c.expect.plateBecomesUpload) {
+    const e = p.bible[0];
+    if (e.plateUrl !== c.uploads[0].url) fails.push(`plateUrl is ${JSON.stringify(e.plateUrl)}, expected the upload`);
+  }
+  if (c.expect.forbidOk) {
+    const wrong = toolMsgs.filter((m) => c.expect.forbidOk.includes(m.tool.name) && m.tool.output?.kind !== 'error');
+    if (wrong.length) fails.push(`"${wrong[0].tool.name}" succeeded on input that must be refused`);
+  }
+  if (c.expect.oneEntryOnly && p.bible.length !== 1) fails.push(`bible now holds ${p.bible.length} entries; a thread owns one artifact`);
+  return { fails, detail: { used, prose: prose.slice(0, 300) } };
+};
+
 const main = async () => {
   const client = testClient({
     onCall: ({ tool }) => { if (GATED.includes(tool)) spent.push(tool); },
@@ -133,6 +172,7 @@ const main = async () => {
     { dir: 'router', run: runRouterCase },
     { dir: 'shot', run: runShotCase },
     { dir: 'compose', run: runComposeCase },
+    { dir: 'bible', run: runBibleCase },
   ].filter((s) => !only || s.dir === only);
 
   let pass = 0;

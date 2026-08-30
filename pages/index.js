@@ -145,6 +145,31 @@ export default function Shell() {
     apply((prev) => setThreadDraft(prev, openThreadId, text));
   }, [openThreadId, apply]);
 
+  const upload = useCallback((file) => {
+    const threadId = openThreadId;
+    if (!threadId) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch('/api/film/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: reader.result, name: file.name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `upload failed (HTTP ${res.status})`);
+        apply((prev) => appendMessage(prev, threadId, {
+          role: 'user',
+          text: '',
+          asset: { url: data.url, name: file.name, assetId: data.assetId || null },
+        }));
+      } catch (err) {
+        apply((prev) => appendMessage(prev, threadId, { role: 'agent', text: `That upload failed: ${err.message}` }));
+      }
+    };
+    reader.readAsDataURL(file);
+  }, [openThreadId, apply]);
+
   const openFilm = useCallback((id) => {
     let loaded;
     try { loaded = loadProject(id); } catch (err) { setLoadError(err.message); return; }
@@ -244,6 +269,8 @@ export default function Shell() {
           onDraft={draft}
           onApprove={approve}
           onCancel={cancel}
+          onUpload={upload}
+          onOpenThread={setOpenThreadId}
           running={running.current.has(open?.id)}
         />
       )}

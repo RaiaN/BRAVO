@@ -25,7 +25,7 @@ export const resolveSubject = (project, thread, ref) => {
       title: entry.name,
       prompt: entry.prompt,
       model: entry.model,
-      refs: [],
+      refs: entry.refs || [],
       raw: entry,
     };
   }

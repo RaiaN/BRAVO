@@ -40,6 +40,7 @@ export const makeBibleEntry = (fields = {}) => ({
   prompt: '',
   model: null,
   stills: [],
+  refs: [],
   ...fields,
 });
 
@@ -49,6 +50,7 @@ export const makeMessage = (fields = {}) => ({
   role: 'user',
   text: '',
   tool: null,
+  asset: null,
   ...fields,
 });
 
@@ -368,6 +370,15 @@ export const removeShot = (project, shotId) => {
 export const setBibleFields = (project, entryId, fields) => (bibleEntryById(project, entryId)
   ? touch({ ...project, bible: project.bible.map((b) => (b.id === entryId ? { ...b, ...fields, id: b.id } : b)) })
   : project);
+
+export const markCitationsStale = (project, entryId) => touch({
+  ...project,
+  film: {
+    shots: project.film.shots.map((s) => (
+      s.chosenTakeId && s.refs.some((r) => r.bibleEntryId === entryId) ? { ...s, stale: true } : s
+    )),
+  },
+});
 
 export const chooseTake = (project, shotId, takeId) => {
   const shot = shotById(project, shotId);

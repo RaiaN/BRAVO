@@ -1,6 +1,6 @@
 import {
-  bibleEntryById, chooseTake, filmRows, insertShot, makeBibleEntry, moveShot,
-  removeShot, setShotFields, shotById, touch,
+  bibleEntryById, chooseTake, filmRows, insertShot, makeBibleEntry, moveShot, newId,
+  removeShot, setBibleFields, setShotFields, shotById, touch,
 } from '../../state/project.js';
 import { resolveShot } from './shared.js';
 import { ROOT_CONFIG } from '../../utils/film/suiteConfig.js';
@@ -152,6 +152,7 @@ const tag = {
   describe: 'tag — { "name": "<subject>", "role": "character|location|prop", "url": "<a rendered still url>", "notes": "" }. Files a plate into the bible.',
   validate: (input) => {
     if (!String(input.name || '').trim()) return 'tag: needs a "name"';
+    if (input.assetId !== undefined && typeof input.assetId !== 'string') return 'tag: "assetId" must be a string';
     if (!input.role) return 'tag: needs a "role" — character, location, prop or frame';
     if (!['character', 'location', 'prop', 'frame'].includes(input.role)) return `tag: role must be character, location, prop or frame — got "${input.role}"`;
     return null;
@@ -163,10 +164,12 @@ const tag = {
     const url = input.url || lastStill?.url || subject?.plateUrl || null;
     if (!url) return { project, cost: 0, output: { kind: 'error', error: 'tag: there is no rendered plate to file yet — render one with still first' } };
 
+    const uploaded = thread?.messages?.find((m) => m.asset && m.asset.url === url);
     const fields = {
       name: String(input.name).trim(),
       role: input.role,
       plateUrl: url,
+      assetId: input.assetId || uploaded?.asset?.assetId || subject?.assetId || null,
       notes: String(input.notes || subject?.notes || ''),
     };
 
@@ -183,13 +186,84 @@ const tag = {
   },
 };
 
-export const TOOLS = { read, write, order, choose, compose, direct, tag, ...GATED };
+const cite = {
+  name: 'cite',
+  gated: false,
+  describe: 'cite — { "shot": <n|id>, "entry": "<bible entry name or id>" } attaches that entry\'s plate as the next reference (its position is the citation number); { "shot": <n|id>, "remove": <position> } detaches one.',
+  validate: (input) => {
+    if (input.entry === undefined && input.remove === undefined) return 'cite: needs an "entry" to attach or a "remove" position';
+    return null;
+  },
+  run: ({ input, project, thread }) => {
+    const shot = resolveShot(project, input.shot, thread);
+    if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no shot matches ${JSON.stringify(input.shot ?? null)}` } };
+
+    if (input.remove !== undefined) {
+      const n = Number(input.remove);
+      if (!Number.isInteger(n) || n < 1 || n > shot.refs.length) {
+        return { project, cost: 0, output: { kind: 'error', error: `cite: this shot has ${shot.refs.length} reference(s); ${JSON.stringify(input.remove)} matches none` } };
+      }
+      const next = setShotFields(project, shot.id, { refs: shot.refs.filter((_, i) => i !== n - 1) });
+      return { project: next, cost: 0, output: { kind: 'shot', shot: shotView(next, shotById(next, shot.id)) } };
+    }
+
+    const q = String(input.entry).trim().toLowerCase();
+    const matches = project.bible.filter((b) => b.id === input.entry || b.name.trim().toLowerCase() === q);
+    if (!matches.length) return { project, cost: 0, output: { kind: 'error', error: `cite: no bible entry matches ${JSON.stringify(input.entry)}` } };
+    if (matches.length > 1) return { project, cost: 0, output: { kind: 'error', error: `cite: ${JSON.stringify(input.entry)} matches ${matches.length} entries — use an id` } };
+    const entry = matches[0];
+    if (!entry.plateUrl) return { project, cost: 0, output: { kind: 'error', error: `cite: "${entry.name}" has no plate yet — render one in its bible thread first` } };
+    if (shot.refs.some((r) => r.bibleEntryId === entry.id)) {
+      const at = shot.refs.findIndex((r) => r.bibleEntryId === entry.id) + 1;
+      return { project, cost: 0, output: { kind: 'error', error: `cite: "${entry.name}" is already reference ${at}` } };
+    }
+
+    const ref = { id: newId('ref'), kind: 'image', url: entry.plateUrl, assetId: entry.assetId || null, label: entry.name, role: entry.role, bibleEntryId: entry.id };
+    const next = setShotFields(project, shot.id, { refs: [...shot.refs, ref] });
+    return { project: next, cost: 0, output: { kind: 'shot', shot: shotView(next, shotById(next, shot.id)) } };
+  },
+};
+
+const attach = {
+  name: 'attach',
+  gated: false,
+  describe: 'attach — { "url": "<an uploaded image url>", "label": "" } adds an uploaded image as an ordered reference for this entry\'s plate renders; { "remove": <position> } detaches one.',
+  validate: (input) => {
+    if (input.url === undefined && input.remove === undefined) return 'attach: needs the "url" of an uploaded image, or a "remove" position';
+    return null;
+  },
+  run: ({ input, project, thread }) => {
+    const entry = thread?.kind === 'bible' ? bibleEntryById(project, thread.subjectId) : null;
+    if (!entry) return { project, cost: 0, output: { kind: 'error', error: 'attach: this thread owns no bible entry' } };
+    const refs = entry.refs || [];
+
+    if (input.remove !== undefined) {
+      const n = Number(input.remove);
+      if (!Number.isInteger(n) || n < 1 || n > refs.length) {
+        return { project, cost: 0, output: { kind: 'error', error: `attach: this entry has ${refs.length} reference(s); ${JSON.stringify(input.remove)} matches none` } };
+      }
+      const next = setBibleFields(project, entry.id, { refs: refs.filter((_, i) => i !== n - 1) });
+      return { project: next, cost: 0, output: { kind: 'plate', entry: bibleEntryById(next, entry.id) } };
+    }
+
+    const uploaded = thread.messages.find((m) => m.asset && m.asset.url === input.url);
+    if (!uploaded) return { project, cost: 0, output: { kind: 'error', error: `attach: ${JSON.stringify(input.url)} was not uploaded in this thread` } };
+    if (refs.some((r) => r.url === input.url)) {
+      return { project, cost: 0, output: { kind: 'error', error: `attach: that image is already reference ${refs.findIndex((r) => r.url === input.url) + 1}` } };
+    }
+    const ref = { id: newId('ref'), kind: 'image', url: input.url, assetId: uploaded.asset.assetId || null, label: String(input.label || uploaded.asset.name || 'upload'), role: 'frame', bibleEntryId: null };
+    const next = setBibleFields(project, entry.id, { refs: [...refs, ref] });
+    return { project: next, cost: 0, output: { kind: 'plate', entry: bibleEntryById(next, entry.id), refs: [...refs, ref].map((r, i) => ({ n: i + 1, label: r.label })) } };
+  },
+};
+
+export const TOOLS = { read, write, order, choose, cite, compose, direct, tag, attach, ...GATED };
 
 export const TOOLS_BY_KIND = {
-  shot:       ['read', 'write', 'order', 'choose', 'compose', 'direct', 'still', 'shoot'],
+  shot:       ['read', 'write', 'order', 'choose', 'cite', 'compose', 'direct', 'still', 'shoot'],
   edit:       ['read', 'choose', 'direct', 'edit', 'shoot'],
-  storyboard: ['read', 'write', 'order', 'compose', 'still'],
-  bible:      ['read', 'write', 'compose', 'still', 'tag'],
+  storyboard: ['read', 'write', 'order', 'cite', 'compose', 'still'],
+  bible:      ['read', 'write', 'attach', 'compose', 'still', 'tag'],
   audio:      ['read', 'write'],
 };
 

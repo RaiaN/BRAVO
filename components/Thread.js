@@ -3,11 +3,13 @@ import UserMessage from './messages/UserMessage';
 import AgentMessage from './messages/AgentMessage';
 import ToolResult from './messages/ToolResult';
 import ApprovalCard from './messages/ApprovalCard';
+import BibleAssets from './results/BibleAssets';
 import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
 
 const MAX_COMPOSER_PX = 232;
 
-function Composer({ onSend, subjectLabel, busy, text, setText }) {
+function Composer({ onSend, subjectLabel, busy, text, setText, onUpload }) {
+  const fileRef = useRef(null);
   const ref = useRef(null);
 
   const fit = () => {
@@ -40,6 +42,24 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
 
   return (<div className="dock">
       <div className="composer">
+        {onUpload && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) onUpload(f);
+              }}
+            />
+            <button type="button" className="clip" onClick={() => fileRef.current?.click()} disabled={busy} title="Upload an image to this entry" aria-label="Upload an image">
+              ＋
+            </button>
+          </>
+        )}
         <textarea
           ref={ref}
           rows={1}
@@ -86,6 +106,13 @@ function Composer({ onSend, subjectLabel, busy, text, setText }) {
           max-height: ${MAX_COMPOSER_PX}px;
         }
         textarea::placeholder { color: var(--faint); }
+        .clip {
+          flex: none; width: 30px; height: 30px; border-radius: 9px;
+          display: grid; place-items: center; align-self: flex-end;
+          color: var(--muted); font-size: 16px;
+        }
+        .clip:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+        .clip:disabled { opacity: 0.28; }
         .send {
           flex: none; width: 30px; height: 30px; border-radius: 9px;
           display: grid; place-items: center;
@@ -154,9 +181,10 @@ function Title({ label, title, onRename }) {
   );
 }
 
-export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, running }) {
+export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, onUpload, onOpenThread, running }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
+  const [showAssets, setShowAssets] = useState(false);
   const subject = subjectOf(project, thread);
   const messages = thread?.messages || [];
 
@@ -208,20 +236,37 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
   return (<main className="pane">
       <header className="head drag">
         {thread.kind
-          ? <Title label={label} title={subject?.title || ''} onRename={onRename} />
+          ? <Title label={label} title={thread.kind === 'bible' ? (subject?.name || '') : (subject?.title || '')} onRename={onRename} />
           : <h1 className="title unset"><span className="n">＋</span> new thread</h1>}
-        <span className={`state ${state}`}>
-          {STATES[state].glyph} {thread.kind ? STATES[state].label : 'unrouted'}
+        <span className="side">
+          {thread.kind === 'bible' && (
+            <button type="button" className={`assets${showAssets ? ' on' : ''}`} onClick={() => setShowAssets((v) => !v)} aria-expanded={showAssets}>
+              assets · {project.bible.length}
+            </button>
+          )}
+          <span className={`state ${state}`}>
+            {STATES[state].glyph} {thread.kind ? STATES[state].label : 'unrouted'}
+          </span>
         </span>
       </header>
+
+      {thread.kind === 'bible' && showAssets && (
+        <div className="assetwrap">
+          <div className="measure">
+            <BibleAssets project={project} onOpenThread={(tid) => { setShowAssets(false); onOpenThread(tid); }} />
+          </div>
+        </div>
+      )}
 
       <div className="scroll transcript" ref={scroller}>
         <div className="measure">
           {messages.length === 0 ? (<div className="opening">
               <p className="lede">
-                {thread.kind
-                  ? (subject?.title ? `${label} · ${subject.title}` : `${label} has no title yet.`)
-                  : 'What is this one about?'}
+                {thread.kind === 'bible'
+                  ? (subject?.name ? `◆ ${subject.name}` : 'A new bible entry.')
+                  : thread.kind
+                    ? (subject?.title ? `${label} · ${subject.title}` : `${label} has no title yet.`)
+                    : 'What is this one about?'}
               </p>
               <p className="sub">
                 {thread.kind
@@ -256,7 +301,10 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
         busy={busy}
         text={thread.draft || ''}
         setText={onDraft}
-        subjectLabel={thread.kind ? (subject?.title ? `\u201c${subject.title}\u201d` : `shot ${label}`) : 'anything'}
+        onUpload={thread.kind === 'bible' ? onUpload : null}
+        subjectLabel={thread.kind === 'bible'
+          ? (subject?.name ? `\u201c${subject.name}\u201d` : 'this entry')
+          : thread.kind ? (subject?.title ? `\u201c${subject.title}\u201d` : `shot ${label}`) : 'anything'}
       />
 
       <style jsx>{`
@@ -273,6 +321,15 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
           box-sizing: content-box;
           border-bottom: 1px solid var(--line-soft);
         }
+        .side { flex: none; display: flex; align-items: center; gap: 12px; }
+        .assets {
+          font-size: 11.5px; padding: 3px 9px; border-radius: 999px;
+          background: var(--hover); color: var(--muted);
+        }
+        .assets:hover { color: var(--ink); }
+        .assets.on { background: var(--accent-wash); color: var(--accent); }
+        .assetwrap { flex: none; padding: 0 24px; background: var(--canvas); }
+        .assetwrap .measure { width: min(var(--pane-w), 100%); margin: 0 auto; }
         .state {
           flex: none; font-size: 11.5px; letter-spacing: 0.02em; color: var(--muted);
         }
