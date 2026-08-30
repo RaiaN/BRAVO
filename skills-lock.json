@@ -5,22 +5,22 @@
       "source": "authored for BRAVO",
       "sourceType": "bravo",
       "note": "NOT a vendor document. The Seedream slots had nothing bound, and BRAVO refuses to compose for an unbound slot. Replace with the official Seedream spec when one exists.",
-      "bytes": 3555,
-      "sha256": "b133f7f4498989775e7040b29efb39f725855bbd16f31b3d3a6bebab44625dfb"
+      "bytes": 2521,
+      "sha256": "dacfb4441335e922b7c695c6afdbd6cc3039f450fc600af2d29941e0360625bb"
     },
     "sd20-pe": {
       "source": "arkdocs-en.tos-ap-southeast-1.volces.com",
       "sourceType": "vendor",
       "note": "Official Seedance 2.0 prompt spec. Outranks any local guidance.",
-      "bytes": 41921,
-      "sha256": "ec94b9bdb5cdd31f4f17dfc566e5c47573886fd95da4bcd4634997e35122f00f"
+      "bytes": 41552,
+      "sha256": "619ed319810208320b0f0134867d102ab4fa790c0ee0c444b4c731bcd93f33c7"
     },
     "sd25-pe": {
       "source": "arkdocs-en.tos-ap-southeast-1.volces.com",
       "sourceType": "vendor",
       "note": "Official Seedance 2.5 prompt spec. Outranks any local guidance.",
-      "bytes": 92532,
-      "sha256": "ec77264f589b0ac0b5620964f47cc046c292d9a14706c234067645dfd3547601"
+      "bytes": 91650,
+      "sha256": "e44ef44a97b9a1f96efebb1732037e416d34a22dc5bd63d6624d292cf4eedf45"
     },
     "seedance-camera": {
       "source": "ModelArkStarterKit/skills/seedance/camera.md",
@@ -28,20 +28,6 @@
       "note": "Methodology, not a vendor spec. Rides alongside sd25-pe/sd20-pe.",
       "bytes": 3325,
       "sha256": "df7b65ef3fcb5d1b450eabe6995244ccb6224c63185e9392096b3670b2040d90"
-    },
-    "seedance-compose": {
-      "source": "ModelArkStarterKit/skills/seedance/compose.md",
-      "sourceType": "starter-kit",
-      "note": "UNBOUND ON PURPOSE: returns JSON and assumes a caller-side compiler, which BRAVO has no place for.",
-      "bytes": 5200,
-      "sha256": "70cd3de1fac0ec32cab3f29b27c6214879f77c3a357593a4525c849afcb2da09"
-    },
-    "seedance-direct": {
-      "source": "ModelArkStarterKit/skills/seedance/direct.md",
-      "sourceType": "starter-kit",
-      "note": "UNBOUND ON PURPOSE: same JSON/compiler contract as seedance-compose.",
-      "bytes": 3556,
-      "sha256": "a4f7c29127d4e356e6be476d67c7b31f8d8122918d500799749a024035f49a52"
     }
   }
 }
