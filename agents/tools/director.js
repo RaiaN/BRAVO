@@ -42,9 +42,7 @@ export const brief = {
     if (!seq) return { project, cost: 0, output: { kind: 'error', error: 'this thread owns no sequence' } };
     const rulebook = await requireRulebook();
 
-    const kMin = 2;
-    const kMax = 4;
-    const window = { kMin, kMax, dMin: 3, dMax: maxShotSeconds(SLOT) };
+    const window = { ...rulebook.ruleById('CIN-005').params, dMax: maxShotSeconds(SLOT) };
     const feas = feasibility(input.targetSeconds, window);
     if (!feas.ok) return { project, cost: 0, output: { kind: 'error', error: `infeasible target: ${feas.reason}` } };
     if (Array.isArray(input.beats) && input.beats.length) {
@@ -92,7 +90,7 @@ export const screenplay = {
     if (!seq) return { project, cost: 0, output: { kind: 'error', error: 'this thread owns no sequence' } };
     if (!seq.brief) return { project, cost: 0, output: { kind: 'error', error: 'no brief yet — set the brief first' } };
     const rulebook = await requireRulebook();
-    const ks = feasibleKs(seq.brief.targetSeconds, { kMin: 2, kMax: 4, dMin: 3, dMax: maxShotSeconds(SLOT) });
+    const ks = feasibleKs(seq.brief.targetSeconds, { ...rulebook.ruleById('CIN-005').params, dMax: maxShotSeconds(SLOT) });
 
     const system = [
       'You write the screenplay for a short film slice. Return ONLY a JSON object, no prose, no fences:',
@@ -121,9 +119,9 @@ export const screenplay = {
       const candidate = { brief: seq.brief, screenplay: { scenes: parsed.scenes || [] } };
       const gates = runPlanGates(rulebook, candidate, gateCtx);
       if (gates.pass || gates.haltedAt === 'shotplan') {
-        payload = { scenes: parsed.scenes || [], beats: seq.brief.beats
+        payload = { scenes: (parsed.scenes || []).map((sc) => ({ ...sc, id: String(sc.id) })), beats: seq.brief.beats
           ? seq.brief.beats.map((t, i) => ({ id: `b${i + 1}`, text: t }))
-          : (parsed.beats || []), gates: gates.results.filter((r) => r.ruleId.startsWith('SCR') || r.ruleId.startsWith('CIN')) };
+          : (parsed.beats || []).map((b) => ({ ...b, id: String(b.id) })), gates: gates.results.filter((r) => r.ruleId.startsWith('SCR') || r.ruleId.startsWith('CIN')) };
         break;
       }
       failure = gateReport(gates.blockers).join('\n');
@@ -166,7 +164,7 @@ export const breakdown = {
     if (!seq.screenplay) return { project, cost: 0, output: { kind: 'error', error: 'no screenplay yet — write it first' } };
     const rulebook = await requireRulebook();
 
-    const window = { kMin: 2, kMax: 4, dMin: 3, dMax: maxShotSeconds(SLOT) };
+    const window = { ...rulebook.ruleById('CIN-005').params, dMax: maxShotSeconds(SLOT) };
     const feas = feasibility(seq.brief.targetSeconds, window, seq.beats.length);
     if (!feas.ok) return { project, cost: 0, output: { kind: 'error', error: feas.reason } };
     if (feas.k !== seq.beats.length) {
@@ -198,7 +196,7 @@ export const breakdown = {
       calls += 1;
       const { parsed, error } = parseStrictJson(content);
       if (error) { failure = error; continue; }
-      const shots = (parsed.shots || []).map((sh) => ({ ...sh, id: String(sh.id), beatId: String(sh.beatId), prompt: '', flags: Array.isArray(sh.flags) ? sh.flags : [] }));
+      const shots = (parsed.shots || []).map((sh) => ({ ...sh, id: String(sh.id), sceneId: String(sh.sceneId), beatId: String(sh.beatId), prompt: '', flags: Array.isArray(sh.flags) ? sh.flags : [] }));
       const candidate = {
         slot: SLOT,
         brief: seq.brief,

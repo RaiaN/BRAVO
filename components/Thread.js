@@ -186,7 +186,8 @@ function Title({ label, title, onRename }) {
 export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, onUpload, onOpenThread, running }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
-  const [showAssets, setShowAssets] = useState(false);
+  const [showAssets, setShowAssets] = useState(thread?.kind === 'director');
+  useEffect(() => { if (thread?.kind === 'director') setShowAssets(true); }, [thread?.kind, thread?.id]);
   const subject = subjectOf(project, thread);
   const messages = thread?.messages || [];
 

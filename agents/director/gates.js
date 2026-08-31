@@ -59,13 +59,13 @@ export const CHECKS = {
 
   'SCR-005': ({ beats, shots }) => {
     const out = [];
-    const beatIds = new Set((beats || []).map((b) => b.id));
+    const beatIds = new Set((beats || []).map((b) => String(b.id)));
     for (const b of beats || []) {
-      const covered = (shots || []).some((s) => s.beatId === b.id);
+      const covered = (shots || []).some((s) => String(s.beatId) === String(b.id));
       out.push(v('SCR-005', `beat ${b.id}`, covered, covered, 'covered by >=1 shot', covered ? null : 'orphan beat'));
     }
     for (const s of shots || []) {
-      const serves = beatIds.has(s.beatId);
+      const serves = beatIds.has(String(s.beatId));
       out.push(v('SCR-005', `shot ${s.id}`, serves, s.beatId || null, 'serves a declared beat', serves ? null : 'decorative shot — serves no beat'));
     }
     return out;
@@ -107,13 +107,13 @@ export const CHECKS = {
   }),
 
   'CIN-002': ({ screenplay, shots }, params) => {
-    const sceneSide = new Map((screenplay?.scenes || []).map((s, i) => [s.id ?? String(i + 1), s.side]));
+    const sceneSide = new Map((screenplay?.scenes || []).map((s, i) => [String(s.id ?? i + 1), s.side]));
     const out = [];
     for (const [sceneId, side] of sceneSide) {
       out.push(v('CIN-002', `scene ${sceneId}`, params.sides.includes(side), side || null, 'declares a side', params.sides.includes(side) ? null : 'no line-of-action side declared'));
     }
     for (const s of shots || []) {
-      const want = sceneSide.get(s.sceneId);
+      const want = sceneSide.get(String(s.sceneId));
       const ok = want && s.side === want;
       out.push(v('CIN-002', `shot ${s.id}`, !!ok, s.side || null, `scene side ${want || '?'}`, ok ? null : 'crosses the line'));
     }
