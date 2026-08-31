@@ -25,6 +25,7 @@ export const makeShot = (fields = {}) => ({
   generateAudio: false,
   takes: [],
   stills: [],
+  ownedBy: null,
   chosenTakeId: null,
   stale: false,
   ...fields,
@@ -66,7 +67,19 @@ export const makeThread = (fields = {}) => ({
   ...fields,
 });
 
-export const THREAD_KINDS = ['shot', 'edit', 'storyboard', 'bible', 'audio'];
+export const makeSequence = (fields = {}) => ({
+  id: newId('seq'),
+  brief: null,
+  screenplay: null,
+  beats: [],
+  plan: null,
+  rulebookVersion: null,
+  shotIds: [],
+  manifestHash: null,
+  status: 'drafting',
+  iterations: [],
+  ...fields,
+});
 
 export const makeProject = (title = 'Untitled film') => {
   const now = new Date().toISOString();
@@ -77,6 +90,7 @@ export const makeProject = (title = 'Untitled film') => {
     createdAt: now,
     updatedAt: now,
     film: { shots: [] },
+    sequences: [],
     bible: [],
     threads: [makeThread()],
     activity: [],
@@ -88,9 +102,12 @@ export const shotById = (project, id) => (id ? project?.film?.shots?.find((s) =>
 export const bibleEntryById = (project, id) => (id ? project?.bible?.find((b) => b.id === id) || null : null);
 export const threadById = (project, id) => (id ? project?.threads?.find((t) => t.id === id) || null : null);
 
+export const sequenceById = (project, id) => (id ? project?.sequences?.find((q) => q.id === id) || null : null);
+
 export const subjectOf = (project, thread) => {
   if (!thread) return null;
   if (thread.kind === 'bible') return bibleEntryById(project, thread.subjectId);
+  if (thread.kind === 'director' || thread.kind === 'critic') return sequenceById(project, thread.subjectId);
   return shotById(project, thread.subjectId);
 };
 
@@ -151,6 +168,7 @@ const hydrate = (raw, key) => {
     look: { style: '', grade: '', notes: '', ...(raw.look || {}) },
     bible: (Array.isArray(raw.bible) ? raw.bible : []).map((b) => makeBibleEntry(b)),
     activity: Array.isArray(raw.activity) ? raw.activity : [],
+    sequences: (Array.isArray(raw.sequences) ? raw.sequences : []).map((q) => makeSequence(q)),
     film: { shots: raw.film.shots.map((sh) => makeShot(sh)) },
     threads: raw.threads.map((t) => makeThread({
       ...t,
@@ -174,7 +192,13 @@ const readJSON = (key, fallback) => {
 
 const writeJSON = (key, value) => {
   if (typeof window === 'undefined') return;
-  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { }
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    if (key.startsWith('bravo:project')) {
+      throw new Error(`Saving the film failed (${err.name}): storage is full. Nothing new is being persisted — export or delete a film before continuing.`);
+    }
+  }
 };
 
 export const listProjects = () => {
@@ -339,6 +363,64 @@ export const setBibleFields = (project, entryId, fields) => (bibleEntryById(proj
   ? touch({ ...project, bible: project.bible.map((b) => (b.id === entryId ? { ...b, ...fields, id: b.id } : b)) })
   : project);
 
+export const setSequenceFields = (project, seqId, fields) => {
+  if (!sequenceById(project, seqId)) return project;
+  if ('iterations' in fields) throw new Error('setSequenceFields: iterations are append-only — use appendIteration');
+  return touch({ ...project, sequences: project.sequences.map((q) => (q.id === seqId ? { ...q, ...fields, id: q.id, iterations: q.iterations } : q)) });
+};
+
+export const appendNote = (project, seqId, iterationId, note) => {
+  const seq = sequenceById(project, seqId);
+  if (!seq) return project;
+  const it = seq.iterations.find((x) => x.id === iterationId);
+  if (!it) throw new Error(`appendNote: iteration ${iterationId} does not exist`);
+  const full = { id: newId('note'), at: new Date().toISOString(), disposition: 'pending', ...note };
+  return touch({
+    ...project,
+    sequences: project.sequences.map((q) => (q.id === seqId
+      ? { ...q, iterations: q.iterations.map((x) => (x.id === iterationId ? { ...x, notes: [...x.notes, full] } : x)) }
+      : q)),
+  });
+};
+
+export const appendCorrection = (project, seqId, iterationId, correction) => {
+  const seq = sequenceById(project, seqId);
+  if (!seq) return project;
+  const it = seq.iterations.find((x) => x.id === iterationId);
+  if (!it) throw new Error(`appendCorrection: iteration ${iterationId} does not exist`);
+  const full = { id: newId('cor'), at: new Date().toISOString(), status: 'recorded', ...correction };
+  return touch({
+    ...project,
+    sequences: project.sequences.map((q) => (q.id === seqId
+      ? { ...q, iterations: q.iterations.map((x) => (x.id === iterationId ? { ...x, corrections: [...x.corrections, full] } : x)) }
+      : q)),
+  });
+};
+
+export const setCorrectionStatus = (project, seqId, iterationId, correctionId, status) => touch({
+  ...project,
+  sequences: project.sequences.map((q) => (q.id === seqId
+    ? { ...q, iterations: q.iterations.map((x) => (x.id === iterationId ? { ...x, corrections: x.corrections.map((c) => (c.id === correctionId ? { ...c, status } : c)) } : x)) }
+    : q)),
+});
+
+export const setNoteDisposition = (project, seqId, iterationId, noteId, disposition) => touch({
+  ...project,
+  sequences: project.sequences.map((q) => (q.id === seqId
+    ? { ...q, iterations: q.iterations.map((x) => (x.id === iterationId ? { ...x, notes: x.notes.map((n) => (n.id === noteId ? { ...n, disposition } : n)) } : x)) }
+    : q)),
+});
+
+export const appendIteration = (project, seqId, record) => {
+  const seq = sequenceById(project, seqId);
+  if (!seq) return project;
+  const index = seq.iterations.length;
+  if (record.index !== undefined && record.index !== index) {
+    throw new Error(`appendIteration: record claims index ${record.index}, next is ${index}`);
+  }
+  return touch({ ...project, sequences: project.sequences.map((q) => (q.id === seqId ? { ...q, iterations: [...q.iterations, { ...record, index }] } : q)) });
+};
+
 export const markCitationsStale = (project, entryId) => touch({
   ...project,
   film: {
@@ -358,14 +440,22 @@ export const latchThread = (project, threadId, kind, { subjectId = null, title =
   const thread = threadById(project, threadId);
   if (!thread) return { project, thread: null };
   if (thread.kind) return { project, thread };
-  if (!THREAD_KINDS.includes(kind)) return { project, thread };
+  if (typeof kind !== 'string' || !kind.trim()) {
+    throw new Error(`latchThread: "${kind}" is not a thread kind`);
+  }
 
   let next = project;
   let subject = subjectId;
 
   if (!subject && kind === 'edit') {
-    const shot = (next.film.shots || []).filter((sh) => sh.takes.length);
+    const shot = (next.film.shots || []).filter((sh) => sh.takes.length && !sh.ownedBy);
     subject = shot.length === 1 ? shot[0].id : null;
+  }
+  if (subject) {
+    const owned = shotById(next, subject);
+    if (owned?.ownedBy && kind !== 'director') {
+      throw new Error(`shot ${subject} belongs to sequence ${owned.ownedBy} — its notes go to the director thread`);
+    }
   }
 
   if (!subject && (kind === 'shot' || kind === 'storyboard')) {

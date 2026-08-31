@@ -16,6 +16,10 @@ const summarise = (name, output) => {
   if (output.kind === 'take') return `a take · ${output.take.model} ${output.take.resolution}`;
   if (output.kind === 'still') return 'a still';
   if (output.kind === 'cancelled') return 'cancelled — nothing was sent';
+  if (output.kind === 'slice') return `the slice · ${output.totalMeasured}s for ${output.targetSeconds}s target`;
+  if (output.kind === 'brief') return `brief locked · ${output.brief.targetSeconds}s`;
+  if (output.kind === 'screenplay') return `screenplay · ${output.scenes.length} scene${output.scenes.length === 1 ? '' : 's'}, ${output.beats.length} beats`;
+  if (output.kind === 'plan') return `shot plan · ${output.shots.length} shots = ${output.totalSeconds}s`;
   if (output.kind === 'look') return 'the look';
   if (output.kind === 'bible') return `${output.entries.length} bible entr${output.entries.length === 1 ? 'y' : 'ies'}`;
   return name;
@@ -24,6 +28,41 @@ const summarise = (name, output) => {
 const Body = ({ output }) => {
   if (!output) return null;
   if (output.kind === 'film') return <FilmStrip shots={output.shots} />;
+  if (output.kind === 'slice') {
+    return (
+      <div className="stack">
+        <TakePlayer take={{ url: output.url, model: 'seedance25', resolution: '720p' }} />
+        <table className="shots">
+          <tbody>
+            {output.shots.map((sh, i) => (
+              <tr key={sh.id}>
+                <td className="tnum">{i + 1}</td>
+                <td>{sh.seconds}s planned</td>
+                <td>{sh.measured}s measured</td>
+                <td>{sh.chainDistance !== null ? `join ${sh.chainDistance}` : '—'}</td>
+                <td>{sh.silent ? 'silent' : 'audio'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <style jsx>{`
+          .stack{display:flex;flex-direction:column;gap:8px}
+          .shots{border-collapse:collapse;font-size:11.5px;color:var(--muted)}
+          td{padding:2px 10px 2px 0}
+        `}</style>
+      </div>
+    );
+  }
+  if (output.kind === 'plan') {
+    return (
+      <div className="stack">
+        {output.shots.map((sh, i) => (
+          <PromptBlock key={sh.id} prompt={sh.prompt} label={`shot ${i + 1} · ${sh.seconds}s · ${sh.setup}`} />
+        ))}
+        <style jsx>{`.stack{display:flex;flex-direction:column;gap:8px}`}</style>
+      </div>
+    );
+  }
   if (output.kind === 'take') return <TakePlayer take={output.take} />;
   if (output.kind === 'still') return <StillGrid stills={[output.still]} />;
   if (output.kind === 'prompt') {
@@ -67,10 +106,10 @@ export default function ToolResult({ message }) {
   const [open, setOpen] = useState(MEDIA.includes(output?.kind));
 
   useEffect(() => {
-    if (MEDIA.includes(output?.kind)) setOpen(true);
+    if ([...MEDIA, 'slice'].includes(output?.kind)) setOpen(true);
   }, [output?.kind]);
   const failed = output?.kind === 'error';
-  const hasBody = ['film', 'shot', 'look', 'prompt', 'take', 'still'].includes(output?.kind);
+  const hasBody = ['film', 'shot', 'look', 'prompt', 'take', 'still', 'slice', 'plan'].includes(output?.kind);
 
   return (<article className={`tool${failed ? ' failed' : ''}`} data-role="tool">
       <button type="button" className="line" onClick={() => hasBody && setOpen((v) => !v)} disabled={!hasBody} aria-expanded={hasBody ? open : undefined}>

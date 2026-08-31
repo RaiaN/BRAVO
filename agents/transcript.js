@@ -14,7 +14,13 @@ export const transcriptFor = (thread, cap = DEFAULT_CAP) => {
     : '';
 
   const body = recent.map((m) => {
-    if (m.role === 'tool') return `YOU ALREADY RAN ${m.tool.name} → ${JSON.stringify(m.tool.output).slice(0, 1200)}`;
+    if (m.role === 'tool') {
+      const full = JSON.stringify(m.tool.output);
+      const shown = full.length > 1200
+        ? `${full.slice(0, 1200)} …[TRUNCATED FOR THIS TRANSCRIPT ONLY — the full result was saved and the call ${m.tool.output?.kind === 'error' ? 'FAILED' : 'SUCCEEDED'}; never re-run it because of this cut]`
+        : full;
+      return `YOU ALREADY RAN ${m.tool.name} → ${shown}`;
+    }
     if (m.asset) return `PERSON UPLOADED an image: url=${m.asset.url}${m.asset.name ? ` name=${JSON.stringify(m.asset.name)}` : ''}${m.text ? ` — ${m.text}` : ''}`;
     return `${m.role === 'user' ? 'PERSON' : 'YOU'}: ${m.text}`;
   }).join('\n');

@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "SCR-001",
+      "title": "The screenplay parses",
+      "statement": "The screenplay is scenes: each has a slugline (INT or EXT, a location, a time of day) and at least one action line.",
+      "class": "plan",
+      "appliesTo": "screenplay",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-002",
+      "title": "Dramatis elements are declared",
+      "statement": "The brief's logline decomposes into a declared protagonist, a want, and an opposition; the screenplay names all three.",
+      "class": "plan",
+      "appliesTo": "screenplay",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-003",
+      "title": "Antagonism is present on screen",
+      "statement": "At least one scene stages the opposition directly: the declared opposing force acts against the protagonist's want inside a scene, not only in description.",
+      "class": "plan",
+      "appliesTo": "screenplay",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-004",
+      "title": "Every scene turns",
+      "statement": "Each scene declares a value change: it opens in one state and closes in another, and the two differ.",
+      "class": "plan",
+      "appliesTo": "screenplay",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-005",
+      "title": "Beats cover the story and shots cover the beats",
+      "statement": "Every beat maps to at least one shot and every shot serves exactly one beat; no orphan beats, no decorative shots.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-006",
+      "title": "Dialogue survives verbatim",
+      "statement": "Every dialogue line in the screenplay appears verbatim, in the brace grammar, in exactly one shot prompt.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-007",
+      "title": "Entities close",
+      "statement": "Every character and location named in the screenplay resolves to a bible entry id, or is declared new with a plate line item in the manifest; nothing dangles.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-008",
+      "title": "The brief is complete",
+      "statement": "A brief carries a non-empty logline, an integer target duration, cast and location lists with resolutions, and fixed wire format; a missing field is a question to the person, never an invention.",
+      "class": "plan",
+      "appliesTo": "brief",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": { "fps": 24 },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-009",
+      "title": "Characters are worth watching",
+      "statement": "A character on screen wants something in this scene and does something about it; presence without pursuit is decoration.",
+      "class": "judgment",
+      "appliesTo": "screenplay",
+      "blocking": false,
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-010",
+      "title": "Dialogue carries subtext",
+      "statement": "People say things to get things; a line that only announces information the picture already shows is cut or turned.",
+      "class": "judgment",
+      "appliesTo": "screenplay",
+      "blocking": false,
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "SCR-011",
+      "title": "The slice tells one story",
+      "statement": "Beginning, escalation, and a landing: the last beat answers the first; a slice that merely stops has not told anything.",
+      "class": "judgment",
+      "appliesTo": "screenplay",
+      "blocking": false,
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    }
+  ]
+}

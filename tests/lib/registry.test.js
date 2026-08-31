@@ -48,3 +48,17 @@ test('an agent module owns its own tool row — the engine cannot widen it', () 
   assert.ok(agentFor('bible').tools.includes('tag'));
   assert.ok(!agentFor('edit').tools.includes('still'), 'edit does not render stills');
 });
+
+test('every registered agent latches a thread without a silent no-op', async () => {
+  const { latchThread, makeProject } = await import('../../state/project.js');
+  for (const a of allAgents()) {
+    let p = makeProject();
+    const threadId = p.threads[0].id;
+    const made = a.latch ? a.latch({ project: p, title: 't', videoSlot: 'seedance25', imageSlot: 'seedream' }) : { project: p, subjectId: null };
+    p = made.project;
+    const r = latchThread(p, threadId, a.id, { subjectId: made.subjectId, title: 't' });
+    assert.equal(r.thread.kind, a.id, `${a.id} failed to latch`);
+  }
+  const fresh = makeProject();
+  assert.throws(() => latchThread(fresh, fresh.threads[0].id, ''), /not a thread kind/);
+});

@@ -60,6 +60,46 @@ subject. Neutral presentation, plainly lit, the subject square in frame; drama b
 the take that cites it. Keep the prompt to the subject itself — duration, aspect ratio and
 resolution travel as fields.`;
 
+export const composeUnderSkill = async ({ modelKey, title, note, currentPrompt, refs = [], dialogue = [], lookLine = '', extraDoctrine = '', plate = false, ctx }) => {
+  const skillLine = await ctx.requireSkillLine(modelKey);
+  const traits = plate ? { refPrefix: '' } : videoTraits(modelKey);
+  const system = [
+    skillLine,
+    '',
+    plate ? PLATE_DOCTRINE : DOCTRINE,
+    '',
+    `This model cites an attached image as "${traits.refPrefix}Image${traits.refPrefix ? '' : ' '}N".`,
+    extraDoctrine,
+  ].filter(Boolean).join('\n');
+
+  const ask0 = [
+    `THE SHOT: ${title || '(untitled)'}`,
+    note ? `WHAT THIS MOMENT IS: ${note}` : '',
+    currentPrompt ? `ITS CURRENT PROMPT:\n${currentPrompt}` : '',
+    refs.length
+      ? `ITS REFERENCES, IN ORDER (position IS the citation number):\n${refs.map((r, i) => `  ${i + 1}. ${r.label || r.role}`).join('\n')}`
+      : 'IT HAS NO REFERENCE IMAGES. Do not cite any.',
+    dialogue.length ? `DIALOGUE, VERBATIM IN BRACES:\n${dialogue.map((l) => `  {${l}}`).join('\n')}` : '',
+    lookLine ? `THE LOOK (standing facts for the whole film): ${lookLine}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  let calls = 0;
+  let prompt = '';
+  let problems = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const ask = attempt === 0
+      ? ask0
+      : `${ask0}\n\nYOUR LAST ATTEMPT WAS REJECTED:\n${problems.map((x) => `- ${x}`).join('\n')}\n\nYour prompt was:\n${prompt}\n\nRewrite it so it passes. Return only the prompt.`;
+    // eslint-disable-next-line no-await-in-loop
+    const { content } = await ctx.client.reason({ prompt: ask, systemPrompt: system, modelId: ctx.modelId });
+    calls += 1;
+    prompt = String(content || '').trim().replace(/^```[a-z]*\n?|```$/g, '').trim();
+    problems = composeGates(prompt, { refCount: refs.length, dialogue });
+    if (!problems.length) break;
+  }
+  return { prompt, problems, calls, refPrefix: traits.refPrefix };
+};
+
 const runCompose = async ({ input, project, thread, ctx, mode }) => {
   const shot = resolveSubject(project, thread, input.shot);
   if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no subject matches ${JSON.stringify(input.shot ?? null)}` } };

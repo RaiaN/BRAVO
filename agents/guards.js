@@ -24,3 +24,15 @@ export const makeThrashGuard = (limit = 2) => {
     return `\`${toolName}\` failed the same way ${n} times: ${error}\n\nI have stopped rather than keep retrying. Tell me how you want to proceed.`;
   };
 };
+
+export const makeRepeatGuard = (limit = 2) => {
+  const seen = new Map();
+  return (toolName, input, errored) => {
+    if (errored) return null;
+    const key = `${toolName}:${JSON.stringify(input)}`;
+    const n = (seen.get(key) || 0) + 1;
+    seen.set(key, n);
+    if (n < limit) return null;
+    return `\`${toolName}\` has now succeeded ${n} times with the same input — repeating it changes nothing. I have stopped; tell me what you actually want changed.`;
+  };
+};

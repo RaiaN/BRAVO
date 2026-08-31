@@ -6,6 +6,9 @@ import { resolveShot } from './shared.js';
 import { ROOT_CONFIG } from '../../utils/film/suiteConfig.js';
 import { compose, direct } from './compose.js';
 import { GATED } from './render.js';
+import { brief, breakdown, screenplay } from './director.js';
+import { sequence } from './sequence.js';
+import { note, patch, propose, regression } from './critic.js';
 
 export { resolveShot };
 
@@ -108,13 +111,20 @@ const order = {
   },
   run: ({ input, project, thread }) => {
     let next = project;
+    const refuseOwned = (shot) => (shot?.ownedBy
+      ? { project, cost: 0, output: { kind: 'error', error: `shot ${shot.id} belongs to sequence ${shot.ownedBy} — reordering or removing it would break the approved manifest. Notes about it go to the director thread.` } }
+      : null);
     if (input.move !== undefined) {
       const shot = resolveShot(project, input.move, thread);
       if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no shot matches ${JSON.stringify(input.move)}` } };
+      const owned = refuseOwned(shot);
+      if (owned) return owned;
       next = moveShot(project, shot.id, Number(input.to) - 1);
     } else if (input.remove !== undefined) {
       const shot = resolveShot(project, input.remove, thread);
       if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no shot matches ${JSON.stringify(input.remove)}` } };
+      const owned = refuseOwned(shot);
+      if (owned) return owned;
       next = removeShot(project, shot.id);
     } else {
       const after = input.after !== undefined ? resolveShot(project, input.after, thread) : null;
@@ -140,6 +150,9 @@ const choose = {
   run: ({ input, project, thread }) => {
     const shot = resolveShot(project, input.shot, thread);
     if (!shot) return { project, cost: 0, output: { kind: 'error', error: `no shot matches ${JSON.stringify(input.shot ?? null)}` } };
+    if (shot.ownedBy && thread?.kind !== 'director') {
+      return { project, cost: 0, output: { kind: 'error', error: `shot ${shot.id} belongs to sequence ${shot.ownedBy} — its takes are pinned by the approved manifest` } };
+    }
     const next = chooseTake(project, shot.id, input.take);
     if (next === project) return { project, cost: 0, output: { kind: 'error', error: `shot ${shot.id} has no take ${input.take}` } };
     return { project: next, cost: 0, output: { kind: 'shot', shot: shotView(next, shotById(next, shot.id)) } };
@@ -258,7 +271,7 @@ const attach = {
   },
 };
 
-export const TOOLS = { read, write, order, choose, cite, compose, direct, tag, attach, ...GATED };
+export const TOOLS = { read, write, order, choose, cite, compose, direct, tag, attach, brief, screenplay, breakdown, sequence, note, patch, propose, regression, ...GATED };
 
 export const TOOLS_BY_KIND = {
   shot:       ['read', 'write', 'order', 'choose', 'cite', 'compose', 'direct', 'still', 'shoot'],
@@ -266,6 +279,8 @@ export const TOOLS_BY_KIND = {
   storyboard: ['read', 'write', 'order', 'cite', 'compose', 'still'],
   bible:      ['read', 'write', 'attach', 'compose', 'direct', 'still', 'tag'],
   audio:      ['read', 'write'],
+  director:   ['read', 'brief', 'screenplay', 'breakdown', 'sequence', 'note'],
+  critic:     ['read', 'note', 'patch', 'propose', 'regression'],
 };
 
 export const describeTools = (names) => names

@@ -53,3 +53,20 @@ test('a shot created by another run is not deleted by an older one', () => {
   assert.ok(titles.includes('made by B'), "B's new shot must survive A's removal");
   assert.ok(!titles.includes('two'), "A's removal must still take effect");
 });
+
+test('a sequence updated by a tool survives the merge — the erasure the review predicted', async () => {
+  const { makeProject, makeSequence, setSequenceFields, appendIteration } = await import('../../state/project.js');
+  const { mergeChanges } = await import('../../state/merge.js');
+  let before = makeProject();
+  before = { ...before, sequences: [makeSequence()] };
+  const seqId = before.sequences[0].id;
+  const after = setSequenceFields(before, seqId, { brief: { logline: 'x' }, status: 'briefed' });
+  const merged = mergeChanges(before, before, after);
+  assert.equal(merged.sequences[0].status, 'briefed', 'the brief was silently dropped by the merge');
+
+  const withIt = appendIteration(after, seqId, { id: 'it1' });
+  const truncated = { ...withIt, sequences: withIt.sequences.map((q) => ({ ...q, iterations: [] })) };
+  assert.throws(() => mergeChanges(withIt, withIt, truncated), /append-only/);
+  const rewritten = { ...withIt, sequences: withIt.sequences.map((q) => ({ ...q, iterations: [{ id: 'other' }] })) };
+  assert.throws(() => mergeChanges(withIt, withIt, rewritten), /rewrites iteration/);
+});

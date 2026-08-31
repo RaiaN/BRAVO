@@ -121,6 +121,9 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         <button type="button" className={`link${screen === 'skills' ? ' on' : ''}`} onClick={() => onScreen(screen === 'skills' ? null : 'skills')}>
           <span className="icon" aria-hidden="true">⚙</span><span>Skills</span>
         </button>
+        <button type="button" className={`link${screen === 'rules' ? ' on' : ''}`} onClick={() => onScreen(screen === 'rules' ? null : 'rules')}>
+          <span className="icon" aria-hidden="true">§</span><span>Rules</span>
+        </button>
         <button type="button" className="more" onClick={onToggleMore} aria-expanded={more}>
           <span className={`caret${more ? ' down' : ''}`} aria-hidden="true">▾</span>
           <span>More</span>
@@ -187,7 +190,8 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         <Section>{project.title || 'Untitled film'}</Section>
         {rows.length === 0 && <p className="empty">No shots yet. Say what you want in a thread.</p>}
         {rows.map((row) => {
-          const thread = threadForSubject(project, row.shot.id);
+          const thread = threadForSubject(project, row.shot.id)
+            || (row.shot.ownedBy ? threadForSubject(project, row.shot.ownedBy) : null);
           return (<ShotRow
               key={row.shot.id}
               row={row}

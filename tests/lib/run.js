@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { insertShot, latchThread, makeBibleEntry, makeProject, threadById, appendMessage, shotById, touch } from '../../state/project.js';
+import {
+  appendIteration, appendNote, insertShot, latchThread, makeBibleEntry, makeProject,
+  makeSequence, sequenceById, threadById, appendMessage, shotById, touch,
+} from '../../state/project.js';
 import { TOOLS, TOOLS_BY_KIND } from '../../agents/tools/index.js';
 import { composeGates } from '../../agents/tools/compose.js';
 import { requireSkillLine } from '../../utils/film/skills.js';
@@ -10,6 +13,7 @@ import { parseReply } from '../../agents/protocol.js';
 import { route } from '../../agents/router.js';
 import { enabledAgents } from '../../agents/registry.js';
 import '../../agents/index.js';
+import { agentFor } from '../../agents/registry.js';
 import { advance } from '../../agents/session.js';
 
 import { gates, assertNoSpend } from './gates.js';
@@ -19,7 +23,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const args = process.argv.slice(2);
 const SPEND = args.includes('--spend');
-const only = args.find((a) => !a.startsWith('--'));
+const positional = args.filter((a) => !a.startsWith('--'));
+const only = positional[0];
+const caseFilter = positional[1] ? new RegExp(positional[1], 'i') : null;
 
 const GATED = ['still', 'shoot', 'edit', 'extend', 'speak'];
 const spent = [];
@@ -163,6 +169,123 @@ const runBibleCase = async (client, c) => {
   return { fails, detail: { used, prose: prose.slice(0, 300) } };
 };
 
+const runDirectorCase = async (client, c) => {
+  let p = makeProject();
+  const threadId = p.threads[0].id;
+  const mod = agentFor('director');
+  const made = mod.latch({ project: p, title: '' });
+  p = made.project;
+  p = latchThread(p, threadId, 'director', { subjectId: made.subjectId, title: '' }).project;
+  p = appendMessage(p, threadId, { role: 'user', text: c.input });
+  await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
+
+  const t = threadById(p, threadId);
+  const toolMsgs = t.messages.filter((m) => m.role === 'tool');
+  const used = toolMsgs.map((m) => m.tool.name);
+  const prose = t.messages.filter((m) => m.role === 'agent').map((m) => m.text).join('\n');
+  const seq = p.sequences[0];
+  const fails = [];
+
+  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.director);
+  if (bad) fails.push(bad);
+  (c.expect.tools || []).forEach((x) => { if (!used.includes(x)) fails.push(`expected a "${x}" call, got: ${used.join(', ') || 'none'}`); });
+  (c.expect.noTools || []).forEach((x) => { if (used.includes(x)) fails.push(`must NOT have called "${x}"`); });
+  if (c.expect.mustSay && !c.expect.mustSay.test(prose)) fails.push(`report missing: ${JSON.stringify(prose.slice(0, 200))}`);
+  if (c.expect.asksAbout && !c.expect.asksAbout.test(prose)) fails.push(`never asked about ${c.expect.asksAbout}: ${JSON.stringify(prose.slice(0, 200))}`);
+  if (c.expect.briefStaysEmpty && seq.brief) fails.push(`a brief was invented: ${JSON.stringify(seq.brief.logline)}`);
+  if (c.expect.planLands) {
+    if (!seq.plan) fails.push('no plan landed');
+    else {
+      const total = seq.plan.shots.reduce((a, b) => a + b.seconds, 0);
+      if (total !== seq.brief.targetSeconds) fails.push(`plan sums to ${total}, target ${seq.brief.targetSeconds}`);
+      if (seq.plan.shots.some((sh) => !sh.prompt)) fails.push('a plan shot has no prompt');
+      if (seq.rulebookVersion == null) fails.push('rulebook version not pinned');
+    }
+  }
+  if (c.expect.sequenceCardPending) {
+    const card = toolMsgs.find((m) => m.tool.name === 'sequence' && m.tool.card && !m.tool.approved && !m.tool.output);
+    if (!card) fails.push('no pending sequence card');
+    else {
+      const man = card.tool.card.manifest;
+      const total = man.shots.reduce((a, b) => a + b.seconds, 0);
+      if (total !== man.targetSeconds) fails.push(`manifest sums to ${total}, target ${man.targetSeconds}`);
+      if (man.shots.some((sh) => !sh.prompt)) fails.push('a manifest shot has no prompt');
+      if (!card.tool.card.manifestHash) fails.push('manifest not hashed');
+      if (seq.status === 'executing' || seq.status === 'assembled') fails.push('the executor ran WITHOUT approval');
+    }
+  }
+  if (c.expect.beatsCovered && seq.plan) {
+    const beatIds = new Set(seq.beats.map((b) => b.id));
+    const covered = new Set(seq.plan.shots.map((sh) => sh.beatId));
+    if (beatIds.size < 3) fails.push(`expected 3 supplied beats, sequence has ${beatIds.size}`);
+    for (const b of beatIds) if (!covered.has(b)) fails.push(`beat ${b} uncovered`);
+  }
+  const toolErrors = toolMsgs.filter((m) => m.tool.output?.kind === 'error').map((m) => `${m.tool.name}: ${m.tool.output.error.slice(0, 160)}`);
+  return { fails, detail: { used, status: seq.status, shots: seq.plan?.shots?.length ?? 0, toolErrors, prose } };
+};
+
+const runCriticCase = async (client, c) => {
+  let p = makeProject();
+  const seq = makeSequence({
+    brief: { logline: 'A courier crosses a guarded gate.', targetSeconds: 12, format: { fps: 24, audio: true }, world: 'a rain-slicked checkpoint with a wet iron railing', cast: [{ name: 'COURIER', bibleEntryId: 'new' }], locations: [{ name: 'THE GATE', bibleEntryId: 'new' }], dramatis: { protagonist: 'COURIER', want: 'through', opposition: 'THE SENTRY' }, constraints: [], seed: null },
+    plan: { slot: 'seedance25', shots: [
+      { id: 's1', prompt: 'The courier arrives at the gate.', seconds: 6, setup: 'Wide Establisher', side: 'L', location: 'THE GATE', beatId: 'b1' },
+      { id: 's2', prompt: 'The sentry does not move.', seconds: 6, setup: 'Close-Up', side: 'L', location: 'THE GATE', beatId: 'b2' },
+    ], plates: [] },
+    status: 'assembled',
+  });
+  p = touch({ ...p, sequences: [seq] });
+  p = appendIteration(p, seq.id, { id: 'it1', notes: [], corrections: [], gates: [], measurements: { perShot: [], joins: [{ from: 's1', to: 's2', distance: 21 }], timeline: { totalMeasured: 12.08 } }, cost: { renders: 2 }, status: 'assembled' });
+  for (const n of c.notes) p = appendNote(p, seq.id, 'it1', n);
+
+  const threadId = p.threads[0].id;
+  p = latchThread(p, threadId, 'critic', { subjectId: seq.id, title: '' }).project;
+  p = appendMessage(p, threadId, { role: 'user', text: c.input });
+  await advance({ client, threadId, get: () => p, apply: (fn) => { p = fn(p) || p; } });
+
+  const t = threadById(p, threadId);
+  const toolMsgs = t.messages.filter((m) => m.role === 'tool');
+  const used = toolMsgs.map((m) => m.tool.name);
+  const prose = t.messages.filter((m) => m.role === 'agent').map((m) => m.text).join('\n');
+  const q = sequenceById(p, seq.id);
+  const it = q.iterations[0];
+  const fails = [];
+
+  const bad = gates.onlyAllowedTools({ calls: used.filter((n) => n !== 'route').map((tool) => ({ tool })) }, TOOLS_BY_KIND.critic);
+  if (bad) fails.push(bad);
+  if (c.expect.mustSay && !c.expect.mustSay.test(prose)) fails.push(`report missing: ${JSON.stringify(prose.slice(0, 200))}`);
+  if (c.expect.patchTouches) {
+    const cor = it.corrections.find((x) => x.kind === 'patch');
+    if (!cor) fails.push('no patch correction');
+    else if (!cor.patch.some((ch) => ch.path === c.expect.patchTouches)) fails.push(`patch touched ${cor.patch.map((ch) => ch.path).join(', ')}, expected ${c.expect.patchTouches}`);
+  }
+  if (c.expect.patchMade && !it.corrections.some((x) => x.kind === 'patch')) fails.push('no patch correction');
+  if (c.expect.proposalMade) {
+    const cor = it.corrections.find((x) => x.kind === 'ruleProposal');
+    if (!cor) fails.push('no rule proposal');
+    else {
+      if (cor.proposal.blocking) fails.push('a proposal arrived blocking');
+      if (cor.proposal.provenance?.origin !== 'note') fails.push('proposal lost its provenance');
+    }
+  }
+  if (c.expect.regressionMade && !it.corrections.some((x) => x.kind === 'regression')) fails.push('no regression case');
+  if (c.expect.notesDisposed) {
+    const disp = it.notes.map((n) => n.disposition);
+    for (const d of c.expect.notesDisposed) if (!disp.includes(d)) fails.push(`no note disposed as ${d}: ${disp.join(', ')}`);
+  }
+  if (c.expect.asksOnly) {
+    if (it.corrections.length) fails.push(`corrections were invented from a vague note: ${it.corrections.map((x) => x.kind).join(', ')}`);
+    if (!/\?/.test(prose) && !/what|which|tell me|clarif|specif/i.test(prose)) fails.push(`never asked: ${JSON.stringify(prose.slice(0, 160))}`);
+  }
+  if (c.expect.lawUntouched) {
+    const cor = it.corrections.find((x) => x.kind === 'patch');
+    if (cor && cor.patch.some((ch) => /tolerance|theta|rule|gate/i.test(ch.path))) fails.push('LAW WAS TOUCHED');
+    if (q.plan.shots.some((sh) => sh.seconds !== 6)) fails.push('plan seconds were quietly changed');
+  }
+  const toolErrors = toolMsgs.filter((m) => m.tool.output?.kind === 'error').map((m) => `${m.tool.name}: ${m.tool.output.error.slice(0, 140)}`);
+  return { fails, detail: { used, corrections: it.corrections.map((x) => x.kind), dispositions: it.notes.map((n) => n.disposition), toolErrors, prose: prose.slice(0, 240) } };
+};
+
 const main = async () => {
   const client = testClient({
     onCall: ({ tool }) => { if (GATED.includes(tool)) spent.push(tool); },
@@ -185,6 +308,8 @@ const main = async () => {
     { dir: 'shot', run: runShotCase },
     { dir: 'compose', run: runComposeCase },
     { dir: 'bible', run: runBibleCase },
+    { dir: 'director', run: runDirectorCase },
+    { dir: 'critic', run: runCriticCase },
   ].filter((s) => !only || s.dir === only);
 
   let pass = 0;
@@ -201,7 +326,7 @@ const main = async () => {
     console.log(`\n${suite.dir} · ${mod.cases.length} cases`);
     lines.push(`## ${suite.dir}`, '');
 
-    for (const c of mod.cases) {
+    for (const c of mod.cases.filter((cc) => !caseFilter || caseFilter.test(cc.name))) {
       let result;
       try {
         result = await suite.run(client, c);

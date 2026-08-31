@@ -3,7 +3,7 @@ import { mergeChanges } from '../state/merge.js';
 import { gateCall, parseReply, retryPrompt } from './protocol.js';
 import { TOOLS } from './tools/index.js';
 import { agentFor, explainMissing } from './registry.js';
-import { DEFAULT_GUARDS, makeThrashGuard, runGuards } from './guards.js';
+import { DEFAULT_GUARDS, makeRepeatGuard, makeThrashGuard, runGuards } from './guards.js';
 import { transcriptFor } from './transcript.js';
 import { requireSkillLine } from '../utils/film/skills.js';
 
@@ -25,14 +25,16 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
   }
 
   const system = agent.system();
+  const stepCap = Number.isInteger(agent.maxSteps) ? agent.maxSteps : MAX_STEPS;
   const guards = [...DEFAULT_GUARDS, ...(agent.guards || [])];
   const thrash = makeThrashGuard();
+  const repeat = makeRepeatGuard();
   let rendered = false;
 
   status('working');
 
   try {
-    for (let step = 0; step < MAX_STEPS; step += 1) {
+    for (let step = 0; step < stepCap; step += 1) {
       const thread = threadById(p(), threadId);
       const prompt = [agent.context(p(), thread), '', transcriptFor(thread)].filter(Boolean).join('\n');
 
@@ -97,7 +99,9 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
         apply((prev) => mergeChanges(prev, snapshot, result.project));
         push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: result.output, approved: true, cost: result.cost || 0 } });
 
-        const stop = thrash(call.tool, result.output?.kind === 'error' ? result.output.error : null);
+        const errored = result.output?.kind === 'error';
+        const stop = thrash(call.tool, errored ? result.output.error : null)
+          || repeat(call.tool, call.input, errored);
         if (stop) {
           push({ role: 'agent', text: stop });
           status('needs-you');
@@ -107,7 +111,7 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
     }
 
     const done = threadById(p(), threadId).messages.filter((m) => m.role === 'tool' && m.tool.output && m.tool.output.kind !== 'error').map((m) => m.tool.name);
-    push({ role: 'agent', text: `I stopped after ${MAX_STEPS} rounds this turn. Completed so far: ${[...new Set(done)].join(', ') || 'nothing'}. Tell me the single next step and I will take it.` });
+    push({ role: 'agent', text: `I stopped after ${stepCap} rounds this turn. Completed so far: ${[...new Set(done)].join(', ') || 'nothing'}. Tell me the single next step and I will take it.` });
     status('needs-you');
   } catch (err) {
     push({ role: 'agent', text: `That failed: ${err.message}` });

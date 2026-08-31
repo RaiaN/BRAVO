@@ -37,4 +37,10 @@ export const cases = [
     expect: { ask: true },
     why: 'not a request for any agent — asking is the only honest answer',
   },
+  {
+    name: 'ordinary · a whole film goes to the director',
+    input: 'produce a 20 second film: a stray signal reaches a night-shift radio operator who must decide whether to answer',
+    expect: { kind: 'director' },
+    why: 'an N-second story is an orchestration across shots — the director owns it, not a single shot thread',
+  },
 ];

@@ -7,6 +7,7 @@ import { TOOLS } from './tools/index.js';
 import { agentFor, enabledAgents } from './registry.js';
 import { route } from './router.js';
 import { runTurn } from './loop.js';
+import { runSequence } from './director/execute.js';
 import { defaultImageModelKey, defaultVideoModelKey } from '../utils/film/suiteConfig.js';
 
 const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
@@ -61,6 +62,11 @@ export const approveCall = async ({ client, threadId, messageId, get, apply, mod
 
   apply((prev) => setThreadStatus(prev, threadId, 'working'));
   mark({ approved: true });
+
+  if (tool.executor) {
+    await runSequence({ client, threadId, messageId, get, apply, modelId });
+    return;
+  }
 
   const activityId = newId('act');
   const onTask = async ({ taskId, tool: name, label }) => {

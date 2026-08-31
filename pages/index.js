@@ -3,11 +3,13 @@ import Rail from '../components/Rail';
 import Thread from '../components/Thread';
 import SkillsScreen from '../components/SkillsScreen';
 import FilmsScreen from '../components/FilmsScreen';
+import RulesScreen from '../components/RulesScreen';
 import {
   addThread,
   appendMessage,
   clearProject,
   listProjects,
+  setCorrectionStatus,
   loadProject,
   makeProject,
   renameThreadSubject,
@@ -21,6 +23,7 @@ import { hydrateSkills } from '../utils/film/skills';
 import '../agents';
 import { advance, approveCall, cancelCall } from '../agents/session';
 import { reconcileInterrupted, resumeActivity } from '../agents/resume';
+import { resumeSequences } from '../agents/director/execute';
 
 const THEME_KEY = 'bravo:theme';
 const SAVE_DEBOUNCE_MS = 300;
@@ -31,6 +34,7 @@ export default function Shell() {
   const [more, setMore] = useState(false);
   const [screen, setScreen] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [saveError, setSaveError] = useState(null);
   const [theme, setTheme] = useState('system');
   const saveTimer = useRef(null);
   const latest = useRef(null);
@@ -67,7 +71,9 @@ export default function Shell() {
     latest.current = project;
     if (!project) return undefined;
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveProject(project), SAVE_DEBOUNCE_MS);
+    saveTimer.current = setTimeout(() => {
+      try { saveProject(project); setSaveError(null); } catch (err) { setSaveError(err.message); }
+    }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(saveTimer.current);
   }, [project]);
 
@@ -254,6 +260,13 @@ export default function Shell() {
         onTheme={setTheme}
       />
       {screen === 'skills' && <SkillsScreen onClose={() => setScreen(null)} />}
+      {screen === 'rules' && (
+        <RulesScreen
+          project={project}
+          onClose={() => setScreen(null)}
+          onCorrectionStatus={(seqId, itId, corId, status) => apply((prev) => setCorrectionStatus(prev, seqId, itId, corId, status))}
+        />
+      )}
       {screen === 'films' && (<FilmsScreen
           currentId={project.id}
           onOpen={openFilm}

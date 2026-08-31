@@ -25,3 +25,15 @@ test('a gated tool refuses to prepare a card when the prompt is missing', () => 
   });
   assert.ok(out.error, 'must refuse, not invent a subject');
 });
+
+test('sequence-owned shots refuse other agents', async () => {
+  const { insertShot, latchThread, makeProject } = await import('../../state/project.js');
+  let p = makeProject();
+  const made = insertShot(p, { fields: { title: 'owned', ownedBy: 'seq_1', takes: [{ id: 'tk1' }], chosenTakeId: 'tk1', prompt: 'x' } });
+  p = made.project;
+  assert.throws(() => latchThread(p, p.threads[0].id, 'edit', { subjectId: made.shot.id }), /belongs to sequence/);
+  const order = TOOLS.order.run({ input: { remove: made.shot.id }, project: p, thread: null });
+  assert.match(order.output.error, /belongs to sequence/);
+  const choose = TOOLS.choose.run({ input: { shot: made.shot.id, take: 'tk1' }, project: p, thread: null });
+  assert.match(choose.output.error, /belongs to sequence/);
+});

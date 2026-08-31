@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "CIN-001",
+      "title": "One declared camera setup per shot",
+      "statement": "Every shot declares exactly one camera setup from the camera library vocabulary.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": {
+        "vocabulary": ["Wide Establisher", "Full Shot", "Medium Shot", "Close-Up", "Extreme Close-Up", "Two Shot", "Over-the-Shoulder", "Insert", "Low Angle", "High Angle", "Dutch Angle", "Eye-Level", "Rule-of-Thirds Portrait", "Center Symmetric", "Slow Push-In", "Pull-Back Reveal", "Lateral Track", "Handheld Follow", "Static Lock-Off"]
+      },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-002",
+      "title": "Stay on one side of the line",
+      "statement": "A scene declares its line-of-action side; every shot in the scene declares the same side.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": { "sides": ["L", "R"] },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-003",
+      "title": "Joins are continuous",
+      "statement": "At every chained join, the perceptual-hash distance between the previous take's true last frame and the next take's first frame stays within the calibrated threshold.",
+      "class": "measure",
+      "appliesTo": "joins",
+      "blocking": false,
+      "failureKind": "retryable",
+      "params": { "theta": null },
+      "provenance": { "origin": "seed" },
+      "status": "calibrating"
+    },
+    {
+      "id": "CIN-004",
+      "title": "Takes match the declared format",
+      "statement": "Every take decodes at the declared frame rate and resolution.",
+      "class": "measure",
+      "appliesTo": "perShot",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": { "fps": 24 },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-005",
+      "title": "Durations are feasible and sum to N",
+      "statement": "Shot count and per-shot planned durations sit inside the slot's window and sum exactly to the target seconds.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": { "kMin": 2, "kMax": 4, "dMin": 3 },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-006",
+      "title": "Establish before you go close",
+      "statement": "The first shot at a new location is a wide or full setup before any close setup at that location, unless the shot declares an intentional override, which is recorded.",
+      "class": "plan",
+      "appliesTo": "shotplan",
+      "blocking": true,
+      "failureKind": "deterministic",
+      "params": {
+        "establishing": ["Wide Establisher", "Full Shot"],
+        "close": ["Close-Up", "Extreme Close-Up", "Insert"],
+        "overrideFlag": "no-establish"
+      },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-007",
+      "title": "Takes cover their planned seconds within budget",
+      "statement": "Each take measures at least its planned duration and overshoots by no more than its share of the timeline tolerance.",
+      "class": "measure",
+      "appliesTo": "perShot",
+      "blocking": true,
+      "failureKind": "retryable",
+      "params": { "toleranceTotal": 0.5 },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-008",
+      "title": "The timeline lands on N",
+      "statement": "The assembled slice measures within the tolerance of the target seconds.",
+      "class": "measure",
+      "appliesTo": "timeline",
+      "blocking": true,
+      "failureKind": "retryable",
+      "params": { "tolerance": 0.5 },
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-009",
+      "title": "No dead air",
+      "statement": "No take contains black or frozen segments beyond the calibrated fraction.",
+      "class": "measure",
+      "appliesTo": "perShot",
+      "blocking": false,
+      "failureKind": "retryable",
+      "params": { "maxBlackFraction": null, "maxFrozenFraction": null },
+      "provenance": { "origin": "seed" },
+      "status": "calibrating"
+    },
+    {
+      "id": "CIN-010",
+      "title": "Cut on action",
+      "statement": "A join lands inside a movement, not after it settles; stillness at a cut is a choice, never a default.",
+      "class": "judgment",
+      "appliesTo": "joins",
+      "blocking": false,
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    },
+    {
+      "id": "CIN-011",
+      "title": "Coverage earns its close-ups",
+      "statement": "A close setup pays off something the wider coverage set up; it is never the first acquaintance with a subject.",
+      "class": "judgment",
+      "appliesTo": "shotplan",
+      "blocking": false,
+      "provenance": { "origin": "seed" },
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "metrics": [
+    { "id": "M-DUR", "family": "temporal", "method": "exact", "implementation": "probe: |timeline.totalMeasured - N|", "connectedRules": ["CIN-008"], "calibration": { "status": "n/a" } },
+    { "id": "M-CHAIN", "family": "temporal", "method": "exact", "implementation": "dHash distance per join, from take bytes; film score = max and mean", "connectedRules": ["CIN-003"], "calibration": { "status": "pending", "gatePromotion": "director-signed theta" } },
+    { "id": "M-MOTION", "family": "temporal", "method": "exact", "implementation": "ffmpeg blackdetect + freezedetect fractions per take", "connectedRules": ["CIN-009"], "calibration": { "status": "pending" } },
+    { "id": "M-CAST", "family": "entity", "method": "scored", "implementation": "vision reasoner, fixed rubric 0-5 per (plate, shot frame) pair; scoring prompt version pinned in the record", "connectedRules": [], "calibration": { "status": "pending", "against": "director notes", "recordOnlyUntilCalibrated": true } },
+    { "id": "M-LOC", "family": "entity", "method": "scored", "implementation": "as M-CAST, for locations", "connectedRules": [], "calibration": { "status": "pending", "against": "director notes", "recordOnlyUntilCalibrated": true } },
+    { "id": "M-LOOK", "family": "entity", "method": "exact+scored", "implementation": "color-histogram distance from film mean (exact) plus scored style adherence", "connectedRules": [], "calibration": { "status": "pending", "recordOnlyUntilCalibrated": true } },
+    { "id": "M-BEAT", "family": "screenwriting", "method": "exact", "implementation": "beat-shot coverage graph, both directions", "connectedRules": ["SCR-005"], "calibration": { "status": "n/a" } },
+    { "id": "M-DLG", "family": "screenwriting", "method": "exact", "implementation": "verbatim brace-grammar survival into prompts; rendered speech is out of scope in v1 (no ASR)", "connectedRules": ["SCR-006"], "calibration": { "status": "n/a" } },
+    { "id": "M-TURN", "family": "screenwriting", "method": "exact+scored", "implementation": "turn declared per scene (exact presence) plus scored turn quality", "connectedRules": ["SCR-004"], "calibration": { "status": "pending", "recordOnlyUntilCalibrated": true } },
+    { "id": "M-RECUR", "family": "loop", "method": "exact", "implementation": "notes hitting a rule after that rule was patched or ruled; target monotone to zero", "connectedRules": [], "calibration": { "status": "n/a" } },
+    { "id": "M-GATE-GROWTH", "family": "loop", "method": "exact", "implementation": "count of active plan+measure rules over time", "connectedRules": [], "calibration": { "status": "n/a" } },
+    { "id": "M-FIRSTPASS", "family": "loop", "method": "exact", "implementation": "fraction of iterations assembled with zero blocker notes", "connectedRules": [], "calibration": { "status": "n/a" } },
+    { "id": "M-COST", "family": "loop", "method": "exact", "implementation": "renders per accepted slice", "connectedRules": [], "calibration": { "status": "n/a" } },
+    { "id": "M-CALIB", "family": "loop", "method": "exact", "implementation": "precision and recall of scored-metric flags against director notes; promotion to gate requires a director-signed threshold", "connectedRules": [], "calibration": { "status": "n/a" } }
+  ]
+}

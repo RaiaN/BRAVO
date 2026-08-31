@@ -1,8 +1,20 @@
 const BASE = process.env.BRAVO_TEST_URL || `http://127.0.0.1:${process.env.PORT || 3210}`;
 
+const transient = /overload|retry later|too many requests|429|502|503|504|timed? ?out/i;
+
 export const testClient = ({ base = BASE, onCall = () => {} } = {}) => ({
   base,
-  async reason({ prompt, systemPrompt, modelId, reasoningEffort }) {
+  async reason(args) {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.reasonOnce(args);
+      } catch (err) {
+        if (attempt >= 2 || !transient.test(String(err.message))) throw err;
+        await new Promise((r) => setTimeout(r, 2500 * 2 ** attempt));
+      }
+    }
+  },
+  async reasonOnce({ prompt, systemPrompt, modelId, reasoningEffort }) {
     onCall({ tool: 'reason', chars: prompt.length });
     const res = await fetch(`${base}/api/seed`, {
       method: 'POST',

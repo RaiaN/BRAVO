@@ -4,6 +4,8 @@ import AgentMessage from './messages/AgentMessage';
 import ToolResult from './messages/ToolResult';
 import ApprovalCard from './messages/ApprovalCard';
 import BibleAssets from './results/BibleAssets';
+import SequenceCard from './messages/SequenceCard';
+import DirectorFlow from './results/DirectorFlow';
 import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
 
 const MAX_COMPOSER_PX = 232;
@@ -227,7 +229,9 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
   const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
   const label = !thread.kind
     ? '＋'
-    : (thread.kind === 'bible' ? '◆' : (position >= 0 ? String(position + 1).padStart(2, '0') : '—'));
+    : thread.kind === 'director'
+      ? '▣'
+      : (thread.kind === 'bible' ? '◆' : (position >= 0 ? String(position + 1).padStart(2, '0') : '—'));
 
   const state = stateOf(project, thread);
   const live = activeFor(project, thread.id);
@@ -239,6 +243,11 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
           ? <Title label={label} title={thread.kind === 'bible' ? (subject?.name || '') : (subject?.title || '')} onRename={onRename} />
           : <h1 className="title unset"><span className="n">＋</span> new thread</h1>}
         <span className="side">
+          {thread.kind === 'director' && subject && (
+            <button type="button" className={`assets${showAssets ? ' on' : ''}`} onClick={() => setShowAssets((v) => !v)} aria-expanded={showAssets}>
+              flow{subject.status !== 'drafting' ? ` · ${subject.status}` : ''}
+            </button>
+          )}
           {thread.kind === 'bible' && (
             <button type="button" className={`assets${showAssets ? ' on' : ''}`} onClick={() => setShowAssets((v) => !v)} aria-expanded={showAssets}>
               assets · {project.bible.length}
@@ -254,6 +263,13 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
         <div className="assetwrap">
           <div className="measure">
             <BibleAssets project={project} onOpenThread={(tid) => { setShowAssets(false); onOpenThread(tid); }} />
+          </div>
+        </div>
+      )}
+      {thread.kind === 'director' && showAssets && subject && (
+        <div className="assetwrap">
+          <div className="measure">
+            <DirectorFlow seq={subject} />
           </div>
         </div>
       )}
@@ -278,7 +294,9 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
             const enter = !restored.current.ids.has(m.id) && watching;
             if (m.role === 'tool') {
               if (m.tool?.card && !m.tool.approved && !m.tool.output) {
-                return <ApprovalCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />;
+                return m.tool.name === 'sequence'
+                  ? <SequenceCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />
+                  : <ApprovalCard key={m.id} message={m} busy={busy} onApprove={() => onApprove(m.id)} onCancel={() => onCancel(m.id)} />;
               }
               return <ToolResult key={m.id} message={m} />;
             }

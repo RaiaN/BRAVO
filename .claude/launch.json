@@ -7,6 +7,12 @@
       "runtimeArgs": [],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "verify-clone",
+      "runtimeExecutable": "/private/tmp/claude-501/-Users-bytedance-BRAVO/7c5e1b03-b1f6-4128-9431-ee81791bcc9d/scratchpad/clone/serve.sh",
+      "runtimeArgs": [],
+      "port": 3210
     }
   ]
 }

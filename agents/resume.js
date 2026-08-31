@@ -13,7 +13,7 @@ const landTake = (project, shotId, take) => {
 
 export const resumeActivity = async ({ client, project, onProgress = () => {} }) => {
   let p = project;
-  const running = (p.activity || []).filter((a) => a.state === 'running' && a.taskId);
+  const running = (p.activity || []).filter((a) => a.state === 'running' && a.taskId && !a.seqId);
   if (!running.length) return p;
 
   for (const act of running) {
