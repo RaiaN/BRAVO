@@ -40,6 +40,11 @@ const mergeSequences = (prevList, beforeList, afterList) => {
 export const mergeChanges = (prev, before, after) => {
   if (!before || !after) return prev;
   if (before === after) return prev;
+  for (const key of ['threads', 'activity', 'look']) {
+    if (before[key] !== after[key]) {
+      throw new Error(`merge refused: a tool changed "${key}" — tools own film, bible and sequences; ${key} belongs to the session layer`);
+    }
+  }
   return {
     ...prev,
     film: { shots: remap(prev.film.shots, before.film.shots, after.film.shots) },

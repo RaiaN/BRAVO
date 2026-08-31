@@ -10,3 +10,4 @@ tests/reports/
 # generated test reports
 tests/reports/
 .next-build/
+runs/

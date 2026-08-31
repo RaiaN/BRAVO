@@ -220,10 +220,35 @@ D1–D2 spend nothing. D3 is the first real money (one approved sequence).
 2. **Audio in v1**: chaining + trim work with audio, but trimmed audio cuts hard. Proposal:
    v1 renders silent, audio is a later phase. Say if audio must be in from the start.
 3. **One approval card per sequence** (whole manifest, declared retry pool) — confirm.
-4. **Slice size for the loop's first runs**: propose N ∈ [10, 30], 2–4 shots, so an
+4. **Slice size**: the window is CIN-005's law — shots between kMin and kMax (now 2–8, raised by the creator's signature for the 60-second pilot), each 5–30s on the seedance25 slot, summing exactly to N. The first calibration runs used N ∈ [10, 30], 2–4 shots, so an
    iteration costs minutes, not an afternoon.
 
 ## Grounded in precedent
 
 The director does not invent film craft from a blank page. Every decision — beat shape at N seconds, setup selection, prompt phrasing, thresholds — retrieves precedent from the reference corpus: annotated shots and cuts from real films, beat sheets with timings, calibration statistics measured on real footage, and the house library of every take this studio has rendered and judged. What the corpus is, where its data verifiably lives, and the laws that keep retrieval advisory rather than an escape hatch are defined in [CORPUS.md](CORPUS.md). The short version: gates remain the only law; precedent shapes plans and is cited in the iteration record, so bad evidence is as findable as bad rules.
+
+## The run ledger
+
+Every thread writes its complete pipeline run to disk as it happens: `runs/<threadId>/` holds an append-only `trace.ndjson` plus one numbered file per step under `steps/` — readable in order, greppable as a stream. What lands there:
+
+- `user` and `route` — the message that started the turn and where the router latched it
+- `reason` — every model call in full: the system prompt (rulebook doctrine included), the user prompt, the raw response, the latency
+- `agent` and `tool.*` — every reply and every tool call with its complete input and output, gate reports included
+- `approve` / `resume` — the human decisions, with the approved manifest
+- `render.image`, `render.start`, `render.done` — every paid generation: the exact content sent to the model and what came back
+- `node` — every executor node transition with its measurements, retries, and halt reasons
+- `iteration` — the closing record of each run
+
+Alongside the steps, `runs/<threadId>/media/` holds the actual artifacts as files: `plate-<entity>.png` for every plate, `shoot-<shot>-attempt<n>.mp4` for every take (retakes keep their own numbers, so a burned retry is inspectable), the recorded last frame of each take, and `slice.mp4` for the assembled cut. A run directory is the complete film record: what was asked, what was reasoned, what was rendered, and what it cost.
+
+The ledger is best-effort by design: a dropped step warns in the console but never blocks the pipeline. `runs/` is gitignored — it is evidence, not source.
+
+## Transport constraints learned in production
+
+Two facts about the render endpoint were discovered by real halted runs, and both are now law-shaped:
+
+- The kit clamps every shot to at least 5 seconds, so CIN-005 carries dMin 5 and every planning window reads it from the rule — a 12 second slice is two shots now.
+- Seedance rejects a request that mixes first-frame content with reference media ("first/last frame content cannot be mixed with reference media content"). The executor therefore anchors identity with plates only on the first shot; every chained shot carries the previous take's true last frame alone, and consistency rides the chain.
+
+A halt whose record carries no rule id is a fault (network, an API contract), not a law violation. The flow panel offers "resume the run" for exactly those: the walk re-enters, finished nodes are kept, and no completed shot is paid twice. Rule halts never resume this way — they go through notes and the critic.
 

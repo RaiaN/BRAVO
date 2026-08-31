@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { STALE_RUN_MS, elapsedLabel, runResumable, staleRunning } from '../../state/selectors';
 
 const GLYPH = { pending: '○', running: '⟳', done: '✓', halted: '⚠' };
 
@@ -46,7 +47,7 @@ const detail = (n) => {
   return null;
 };
 
-export default function DirectorFlow({ seq }) {
+export default function DirectorFlow({ seq, onResume }) {
   const [, tick] = useState(0);
   const executing = seq?.status === 'executing';
   useEffect(() => {
@@ -57,10 +58,7 @@ export default function DirectorFlow({ seq }) {
   if (!seq) return null;
 
   const nodes = [...planNodes(seq), ...runNodes(seq)];
-  const elapsed = (iso) => {
-    const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
-  };
+  const elapsed = elapsedLabel;
 
   return (
     <div className="flow">
@@ -75,11 +73,21 @@ export default function DirectorFlow({ seq }) {
             <span className="name">{label(n.id)}</span>
             <span className="info">
               {n.status === 'running' && n.startedAt ? elapsed(n.startedAt) : detail(n)}
+              {n.status === 'running' && n.lastCheckAt && (Date.now() - new Date(n.lastCheckAt).getTime() <= STALE_RUN_MS
+                ? ` · live, checked ${Math.max(0, Math.round((Date.now() - new Date(n.lastCheckAt).getTime()) / 1000))}s ago`
+                : ' · STALLED — nothing is polling this')}
+              {n.status === 'running' && !n.lastCheckAt && n.startedAt && Date.now() - new Date(n.startedAt).getTime() > STALE_RUN_MS ? ' · STALLED — nothing is polling this' : ''}
               {n.attempts > 1 ? ` · attempt ${n.attempts}` : ''}
             </span>
           </li>
         ))}
       </ol>
+      {runResumable(seq) && onResume && (
+        <div className="resume">
+          <span>{seq.status === 'halted' ? 'the halt was a fault, not a rule — finished shots are kept' : 'this run\u2019s poller died (a reload kills it) — resuming re-polls the same paid task'}</span>
+          <button type="button" onClick={onResume}>resume the run</button>
+        </div>
+      )}
       {seq.run && (
         <div className="foot tnum">
           {seq.run.spentRenders} render{seq.run.spentRenders === 1 ? '' : 's'} · retry pool {seq.run.retryPoolLeft} left
@@ -105,6 +113,8 @@ export default function DirectorFlow({ seq }) {
         .info { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); text-align: right; }
         li.halted .info { color: var(--state-stale); }
         .foot { padding-top: 8px; font-size: 11px; color: var(--faint); }
+        .resume { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; font-size: 11.5px; color: var(--muted); }
+        .resume button { padding: 4px 12px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); font-size: 12px; }
       `}</style>
     </div>
   );

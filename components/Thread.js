@@ -6,7 +6,7 @@ import ApprovalCard from './messages/ApprovalCard';
 import BibleAssets from './results/BibleAssets';
 import SequenceCard from './messages/SequenceCard';
 import DirectorFlow from './results/DirectorFlow';
-import { activeFor, STATES, stateOf, subjectOf } from '../state/project';
+import { activeFor, filmRows, STATES, stateOf, subjectOf } from '../state/project';
 
 const MAX_COMPOSER_PX = 232;
 
@@ -183,7 +183,7 @@ function Title({ label, title, onRename }) {
   );
 }
 
-export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, onUpload, onOpenThread, running }) {
+export default function Thread({ project, thread, onSend, onRename, onDraft, onApprove, onCancel, onUpload, onOpenThread, onResume, running }) {
   const scroller = useRef(null);
   const restored = useRef({ threadId: null, ids: null });
   const [showAssets, setShowAssets] = useState(thread?.kind === 'director');
@@ -227,12 +227,12 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
     restored.current = { threadId: thread.id, ids: new Set(messages.map((m) => m.id)) };
   }
 
-  const position = project.film.shots.findIndex((s) => s.id === thread.subjectId);
+  const row = filmRows(project).find((r) => r.shot.id === thread.subjectId);
   const label = !thread.kind
     ? '＋'
     : thread.kind === 'director'
       ? '▣'
-      : (thread.kind === 'bible' ? '◆' : (position >= 0 ? String(position + 1).padStart(2, '0') : '—'));
+      : (thread.kind === 'bible' ? '◆' : (row ? row.label : '—'));
 
   const state = stateOf(project, thread);
   const live = activeFor(project, thread.id);
@@ -270,7 +270,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
       {thread.kind === 'director' && showAssets && subject && (
         <div className="assetwrap">
           <div className="measure">
-            <DirectorFlow seq={subject} />
+            <DirectorFlow seq={subject} onResume={onResume} />
           </div>
         </div>
       )}
@@ -308,7 +308,7 @@ export default function Thread({ project, thread, onSend, onRename, onDraft, onA
 
           {live.length > 0 ? (<p className="working">
               <span className="spin" aria-hidden="true">⟳</span>
-              {live.map((a) => `${a.tool} running at Seedance — minutes, not seconds. It keeps going if you close this tab.`).join(' ')}
+              {live.map((a) => `${a.tool} running at Seedance — minutes, not seconds.${a.seqId ? ' A reload pauses it; the flow panel resumes it.' : ' It keeps going if you close this tab.'}`).join(' ')}
             </p>
           ) : busy && (<p className="working"><span className="spin" aria-hidden="true">⟳</span> working…</p>
           )}

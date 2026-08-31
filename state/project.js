@@ -55,6 +55,8 @@ export const makeMessage = (fields = {}) => ({
   ...fields,
 });
 
+export const DEFAULT_BUDGET = () => ({ takesCap: 999, spentTakes: 0 });
+
 export const makeThread = (fields = {}) => ({
   id: newId('thr'),
   kind: null,
@@ -63,7 +65,7 @@ export const makeThread = (fields = {}) => ({
   messages: [],
   status: 'idle',
   draft: '',
-  budget: { takesCap: 999, spentTakes: 0 },
+  budget: DEFAULT_BUDGET(),
   ...fields,
 });
 
@@ -173,7 +175,7 @@ const hydrate = (raw, key) => {
     threads: raw.threads.map((t) => makeThread({
       ...t,
       messages: (Array.isArray(t.messages) ? t.messages : []).map((m) => makeMessage(m)),
-      budget: { takesCap: 4, spentTakes: 0, ...(t.budget || {}) },
+      budget: { ...DEFAULT_BUDGET(), ...(t.budget || {}) },
     })),
   };
 };
@@ -264,17 +266,25 @@ export const clearProject = () => {
   } catch { }
 };
 
-export const addActivity = (project, entry) => touch({
+export const addActivity = (project, entry) => ({
   ...project,
-  activity: [...(project.activity || []), { startedAt: new Date().toISOString(), state: 'running', ...entry }],
+  activity: [
+    ...(project.activity || []).filter((a) => !(entry.seqId && a.seqId === entry.seqId && a.nodeId === entry.nodeId)),
+    { startedAt: new Date().toISOString(), state: 'running', ...entry },
+  ],
 });
 
-export const patchActivity = (project, id, patch) => touch({
+export const pruneSequenceActivity = (project) => ({
+  ...project,
+  activity: (project.activity || []).filter((a) => !a.seqId),
+});
+
+export const patchActivity = (project, id, patch) => ({
   ...project,
   activity: (project.activity || []).map((a) => (a.id === id ? { ...a, ...patch } : a)),
 });
 
-export const removeActivity = (project, id) => touch({
+export const removeActivity = (project, id) => ({
   ...project,
   activity: (project.activity || []).filter((a) => a.id !== id),
 });
