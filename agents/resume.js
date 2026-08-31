@@ -1,6 +1,7 @@
 import {
   appendMessage, makeMessage, newId, patchActivity, removeActivity, setShotFields, shotById, threadById,
 } from '../state/project.js';
+import { tracedClient } from './trace.js';
 
 const landTake = (project, shotId, take) => {
   const shot = shotById(project, shotId);
@@ -11,54 +12,50 @@ const landTake = (project, shotId, take) => {
   });
 };
 
-export const resumeActivity = async ({ client, project, onProgress = () => {} }) => {
-  let p = project;
-  const running = (p.activity || []).filter((a) => a.state === 'running' && a.taskId && !a.seqId);
-  if (!running.length) return p;
+export const resumeActivity = async ({ get, apply }) => {
+  const running = (get().activity || []).filter((a) => a.state === 'running' && a.taskId && !a.seqId);
 
   for (const act of running) {
-    p = patchActivity(p, act.id, { resumed: true });
-    onProgress(p);
+    apply((prev) => patchActivity(prev, act.id, { resumed: true }));
     try {
       // eslint-disable-next-line no-await-in-loop
-      const { videoUrl, lastFrameUrl, videoCacheUrl, lastFrameCacheUrl } = await client.pollVideo({ taskId: act.taskId });
-      const msg = threadById(p, act.threadId)?.messages.find((m) => m.id === act.messageId);
-      const card = msg?.tool?.card;
-      const take = {
-        id: newId('take'),
-        url: videoCacheUrl || videoUrl,
-        sourceUrl: videoUrl,
-        posterUrl: lastFrameCacheUrl || lastFrameUrl || null,
-        createdAt: new Date().toISOString(),
-        promptUsed: card?.prompt || '',
-        model: card?.params?.model || null,
-        resolution: card?.params?.resolution || null,
-        ...(act.tool === 'edit' ? { editedFrom: card?.takeId } : {}),
-      };
-      if (card?.shotId) p = landTake(p, card.shotId, take);
-      if (msg) {
-        p = {
-          ...p,
-          threads: p.threads.map((t) => (t.id === act.threadId
-            ? { ...t, messages: t.messages.map((m) => (m.id === act.messageId ? { ...m, tool: { ...m.tool, output: { kind: 'take', shotId: card?.shotId, take }, cost: 1 } } : m)) }
-            : t)),
+      const { videoUrl, lastFrameUrl, videoCacheUrl, lastFrameCacheUrl } = await tracedClient(act.threadId).pollVideo({ taskId: act.taskId });
+      apply((prev) => {
+        const msg = threadById(prev, act.threadId)?.messages.find((m) => m.id === act.messageId);
+        const card = msg?.tool?.card;
+        const take = {
+          id: newId('take'),
+          url: videoCacheUrl || videoUrl,
+          sourceUrl: videoUrl,
+          posterUrl: lastFrameCacheUrl || lastFrameUrl || null,
+          createdAt: new Date().toISOString(),
+          promptUsed: card?.prompt || '',
+          model: card?.params?.model || null,
+          resolution: card?.params?.resolution || null,
+          ...(act.tool === 'edit' ? { editedFrom: card?.takeId } : {}),
         };
-      }
-      p = removeActivity(p, act.id);
-      p = appendMessage(p, act.threadId, {
-        role: 'agent',
-        text: `That render finished while you were away — it was still running at Seedance, so I picked it back up.`,
+        let next = card?.shotId ? landTake(prev, card.shotId, take) : prev;
+        if (msg) {
+          next = {
+            ...next,
+            threads: next.threads.map((t) => (t.id === act.threadId
+              ? { ...t, messages: t.messages.map((m) => (m.id === act.messageId ? { ...m, tool: { ...m.tool, output: { kind: 'take', shotId: card?.shotId, take }, cost: 1 } } : m)) }
+              : t)),
+          };
+        }
+        next = removeActivity(next, act.id);
+        return appendMessage(next, act.threadId, {
+          role: 'agent',
+          text: `That render finished while you were away — it was still running at Seedance, so I picked it back up.`,
+        });
       });
     } catch (err) {
-      p = removeActivity(p, act.id);
-      p = appendMessage(p, act.threadId, {
+      apply((prev) => appendMessage(removeActivity(prev, act.id), act.threadId, {
         role: 'agent',
         text: `The render that was in flight could not be recovered: ${err.message}`,
-      });
+      }));
     }
-    onProgress(p);
   }
-  return p;
 };
 
 export const reconcileInterrupted = (project) => {

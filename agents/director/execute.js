@@ -6,6 +6,7 @@ import { animate, isAudioPolicyError } from '../../utils/film/core/operations.js
 import { requireRulebook } from './rulebook.js';
 import { runMeasureGates } from './gates.js';
 import { maxShotSeconds } from '../../utils/film/suiteConfig.js';
+import { trace, traceMedia } from '../trace.js';
 
 export const fnv1a = (str) => {
   let h = 0x811c9dc5;
@@ -59,6 +60,8 @@ const nodeIds = (manifest) => [
   'final',
 ];
 
+const ACTIVE_RUNS = new Set();
+
 export const runSequence = async ({ client, threadId, messageId, get, apply, modelId = null }) => {
   const p = () => get();
   const seqIdOf = () => threadById(p(), threadId)?.subjectId;
@@ -66,6 +69,16 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
 
   const start = seq();
   if (!start || !start.plan) return;
+  if (ACTIVE_RUNS.has(start.id)) return;
+  ACTIVE_RUNS.add(start.id);
+  try {
+    await walkSequence({ client, threadId, messageId, get, apply, modelId, p, seqIdOf, seq, start });
+  } finally {
+    ACTIVE_RUNS.delete(start.id);
+  }
+};
+
+const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, p, seqIdOf, seq, start }) => {
   const manifest = manifestOf(start);
   const manifestHash = fnv1a(JSON.stringify(manifest));
 
@@ -79,22 +92,26 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
     threads: prev.threads.map((t) => (t.id === threadId ? { ...t, messages: [...t.messages, { id: newId('msg'), at: new Date().toISOString(), role: 'agent', text, tool: null, asset: null }] } : t)),
   }));
 
-  if (!start.run) {
-    apply((prev) => setSequenceFields(prev, start.id, {
-      status: 'executing',
-      run: { manifestHash, messageId, threadId, startedAt: new Date().toISOString(), nodes: {}, spentRenders: 0, retryPoolLeft: manifest.retryPool, silentShots: [], runs: [], gateResults: [] },
-    }));
-  } else {
-    apply((prev) => setSequenceFields(prev, start.id, { status: 'executing' }));
-  }
+  apply((prev) => {
+    const q = sequenceById(prev, start.id);
+    return setSequenceFields(prev, start.id, q.run
+      ? { status: 'executing' }
+      : {
+        status: 'executing',
+        run: { manifestHash, messageId, threadId, startedAt: new Date().toISOString(), nodes: {}, spentRenders: 0, retryPoolLeft: manifest.retryPool, silentShots: [], runs: [], gateResults: [] },
+      });
+  });
   apply((prev) => setThreadStatus(prev, threadId, 'working'));
 
-  const node = (id) => (seq().run.nodes[id] || { status: 'pending', attempts: 0, value: null });
-  const setNode = (id, patch) => apply((prev) => {
-    const q = sequenceById(prev, start.id);
-    const cur = q.run.nodes[id] || { status: 'pending', attempts: 0, value: null };
-    return setSequenceFields(prev, start.id, { run: { ...q.run, nodes: { ...q.run.nodes, [id]: { ...cur, ...patch } } } });
-  });
+  const node = (id) => (seq().run?.nodes?.[id] || { status: 'pending', attempts: 0, value: null });
+  const setNode = (id, patch, quiet = false) => {
+    if (!quiet) trace(threadId, 'node', { id, ...patch });
+    apply((prev) => {
+      const q = sequenceById(prev, start.id);
+      const cur = q.run.nodes[id] || { status: 'pending', attempts: 0, value: null };
+      return setSequenceFields(prev, start.id, { run: { ...q.run, nodes: { ...q.run.nodes, [id]: { ...cur, ...patch } } } });
+    });
+  };
   const patchRun = (patch) => apply((prev) => {
     const q = sequenceById(prev, start.id);
     return setSequenceFields(prev, start.id, { run: { ...q.run, ...(typeof patch === 'function' ? patch(q.run) : patch) } });
@@ -112,6 +129,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
   };
 
   const finishIteration = (status, haltInfo = null) => {
+    trace(threadId, 'iteration', { sequenceId: start.id, status, halt: haltInfo, spentRenders: seq().run.spentRenders, retryPoolLeft: seq().run.retryPoolLeft });
     apply((prev) => {
       const q = sequenceById(prev, start.id);
       return appendIteration(prev, start.id, {
@@ -151,6 +169,9 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
   const k = manifest.shots.length;
   const shotMap = () => node('shots').value || {};
 
+  let walking = true;
+  while (walking) {
+    walking = false;
   for (const id of nodeIds(manifest)) {
     if (node(id).status === 'done') continue;
     const began = Date.now();
@@ -199,6 +220,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
           }],
         }));
         patchRun((r) => ({ spentRenders: r.spentRenders + 1 }));
+        traceMedia(threadId, `plate-${entity.replace(/[^a-z0-9]+/gi, '_')}.${(durable.match(/\.(png|jpe?g|webp)(?=[?#]|$)/i) || [, 'png'])[1].toLowerCase()}`, durable);
         setNode(id, { status: 'done', ms: Date.now() - began, value: { url: durable, assetId: assetId || null } });
         recordRun(id, node(id).attempts, Date.now() - began, 'done');
         continue;
@@ -211,7 +233,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
         if (!sh) throw new Error(`shot "${shotPlanId}" is not in the manifest — plan shot ids must be the strings their nodes are named for (got: ${manifest.shots.map((x) => `${typeof x.id} ${JSON.stringify(x.id)}`).join(', ')})`);
         const prevShot = idx > 0 ? manifest.shots[idx - 1] : null;
         const firstFrameUrl = prevShot ? node(`shoot:${prevShot.id}`).value?.lastFrameUrl || null : null;
-        const plateRefs = manifest.plates.map((pl) => node(`plate:${pl.entity}`).value).filter(Boolean);
+        const plateRefs = firstFrameUrl ? [] : manifest.plates.map((pl) => node(`plate:${pl.entity}`).value).filter(Boolean);
 
         let existing = node(id).value || {};
         let taskId = existing.taskId || null;
@@ -248,9 +270,18 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
 
         const activityId = newId('act');
         apply((prev) => addActivity(prev, { id: activityId, threadId, messageId, taskId, tool: 'shoot', label: `sequence · ${sh.id}`, seqId: start.id, nodeId: id }));
-        let polled;
+        let polled = null;
+        const pollStarted = Date.now();
         try {
-          polled = await client.pollVideo({ taskId });
+          while (!polled) {
+            if (Date.now() - pollStarted > 1800000) throw new Error(`the render task outlived 30 minutes at the provider (task ${taskId})`);
+            setNode(id, { lastCheckAt: new Date().toISOString() }, true);
+            try {
+              polled = await client.pollVideo({ taskId, timeoutMs: 20000 });
+            } catch (err) {
+              if (!/timed out/i.test(err.message)) throw err;
+            }
+          }
         } finally {
           apply((prev) => removeActivity(prev, activityId));
         }
@@ -275,6 +306,8 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
           return fs ? setShotFields(prev, filmShotId, { takes: [...fs.takes, take], chosenTakeId: take.id }) : prev;
         });
         patchRun((r) => ({ spentRenders: r.spentRenders + 1 }));
+        traceMedia(threadId, `shoot-${shotPlanId}-attempt${node(id).attempts}.mp4`, take.url);
+        if (take.posterUrl) traceMedia(threadId, `shoot-${shotPlanId}-attempt${node(id).attempts}-lastframe.jpg`, take.posterUrl);
         setNode(id, { status: 'done', ms: Date.now() - began, value: { taskId, promptUsed, silent, takeId: take.id, url: take.url, lastFrameUrl: take.posterUrl } });
         recordRun(id, node(id).attempts, Date.now() - began, 'done');
         continue;
@@ -311,7 +344,8 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
           setNode(id, { status: 'pending', value: null });
           recordRun(id, node(id).attempts, Date.now() - began, `retry: ${b.detail || b.value}`);
           say(`Take ${shotPlanId} failed ${b.ruleId} (${b.detail || b.value}) — re-rendering from the declared pool (${left - 1} left).`);
-          return runSequence({ client, threadId, messageId, get, apply, modelId });
+          walking = true;
+          break;
         }
         setNode(id, { status: 'done', ms: Date.now() - began, value: { shotId: shotPlanId, requested: sh.seconds, measured: m.duration, nbReadFrames: m.nbReadFrames, fps: m.fps, overshoot: Math.round((m.duration - sh.seconds) * 1000) / 1000, firstHash: m.firstHash, lastHash: m.lastHash, hasAudio: m.hasAudio, silent: node(`shoot:${shotPlanId}`).value.silent }});
         recordRun(id, node(id).attempts, Date.now() - began, 'done');
@@ -346,6 +380,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.details || data.error || `stitch failed (HTTP ${res.status})`);
+        traceMedia(threadId, 'slice.mp4', data.cacheUrl || data.url);
         setNode(id, { status: 'done', ms: Date.now() - began, value: { url: data.cacheUrl || data.url } });
         recordRun(id, node(id).attempts, Date.now() - began, 'done');
         continue;
@@ -374,6 +409,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
       halt(id, err.message);
       return;
     }
+  }
   }
 
   apply((prev) => setSequenceFields(prev, start.id, { status: 'assembled' }));

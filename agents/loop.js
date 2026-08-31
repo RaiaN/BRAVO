@@ -1,4 +1,5 @@
 import { appendMessage, setThreadStatus, threadById } from '../state/project.js';
+import { trace } from './trace.js';
 import { mergeChanges } from '../state/merge.js';
 import { gateCall, parseReply, retryPrompt } from './protocol.js';
 import { TOOLS } from './tools/index.js';
@@ -11,7 +12,10 @@ export const MAX_STEPS = 6;
 
 export const runTurn = async ({ client, threadId, get, apply, modelId = null }) => {
   const p = () => get();
-  const push = (msg) => apply((prev) => appendMessage(prev, threadId, msg));
+  const push = (msg) => {
+    trace(threadId, msg.role === 'tool' ? `tool.${msg.tool.name}` : 'agent', msg.role === 'tool' ? msg.tool : { text: msg.text });
+    apply((prev) => appendMessage(prev, threadId, msg));
+  };
   const status = (s) => apply((prev) => setThreadStatus(prev, threadId, s));
 
   const thread0 = threadById(p(), threadId);

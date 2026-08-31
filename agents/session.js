@@ -8,6 +8,8 @@ import { agentFor, enabledAgents } from './registry.js';
 import { route } from './router.js';
 import { runTurn } from './loop.js';
 import { runSequence } from './director/execute.js';
+import { trace } from './trace.js';
+import { runResumable } from '../state/selectors.js';
 import { defaultImageModelKey, defaultVideoModelKey } from '../utils/film/suiteConfig.js';
 
 const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
@@ -16,7 +18,9 @@ const ensureRouted = async ({ client, threadId, get, apply, modelId }) => {
   if (thread.kind) return true;
 
   const first = [...thread.messages].reverse().find((m) => m.role === 'user');
+  trace(threadId, 'user', { text: first?.text || '' });
   const decision = await route({ client, message: first?.text || '', modelId, choices: enabledAgents() });
+  trace(threadId, 'route', decision);
 
   if (decision.ask) {
     apply((prev) => appendMessage(prev, threadId, { role: 'agent', text: decision.ask }));
@@ -62,6 +66,7 @@ export const approveCall = async ({ client, threadId, messageId, get, apply, mod
 
   apply((prev) => setThreadStatus(prev, threadId, 'working'));
   mark({ approved: true });
+  trace(threadId, 'approve', { messageId, tool: msg.tool.name, card: msg.tool.card });
 
   if (tool.executor) {
     await runSequence({ client, threadId, messageId, get, apply, modelId });
@@ -92,6 +97,19 @@ export const approveCall = async ({ client, threadId, messageId, get, apply, mod
   }
 
   await runTurn({ client, threadId, get, apply, modelId });
+};
+
+export const resumeRun = async ({ client, threadId, get, apply, modelId = null }) => {
+  const project = get();
+  const thread = threadById(project, threadId);
+  const seq = project.sequences?.find((q) => q.id === thread?.subjectId);
+  if (!runResumable(seq)) return;
+  trace(threadId, 'resume', { sequenceId: seq.id, clearedHalt: seq.run.halted });
+  apply((prev) => ({
+    ...prev,
+    sequences: prev.sequences.map((q) => (q.id === seq.id ? { ...q, run: { ...q.run, halted: null } } : q)),
+  }));
+  await runSequence({ client, threadId, messageId: seq.run.messageId, get, apply, modelId });
 };
 
 export const cancelCall = (project, threadId, messageId) => setThreadStatus({
