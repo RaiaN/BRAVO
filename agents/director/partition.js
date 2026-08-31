@@ -1,4 +1,4 @@
-export const feasibleKs = (N, { kMin = 2, kMax = 4, dMin = 3, dMax }) => {
+export const feasibleKs = (N, { kMin = 2, kMax = 4, dMin = 5, dMax }) => {
   const out = [];
   if (!Number.isInteger(N)) return out;
   for (let k = kMin; k <= kMax; k += 1) {
@@ -7,7 +7,7 @@ export const feasibleKs = (N, { kMin = 2, kMax = 4, dMin = 3, dMax }) => {
   return out;
 };
 
-export const feasibility = (N, { kMin = 2, kMax = 4, dMin = 3, dMax }, preferredK = null) => {
+export const feasibility = (N, { kMin = 2, kMax = 4, dMin = 5, dMax }, preferredK = null) => {
   if (!Number.isInteger(N) || N <= 0) return { ok: false, reason: `target seconds must be a positive integer, got ${JSON.stringify(N)}` };
   if (!Number.isInteger(dMax) || dMax < dMin) return { ok: false, reason: `slot window [${dMin}, ${dMax}] is empty` };
   const lo = kMin * dMin;
@@ -26,7 +26,7 @@ export const feasibility = (N, { kMin = 2, kMax = 4, dMin = 3, dMax }, preferred
   return { ok: false, reason: `no k in ${kMin}..${kMax} admits a partition of ${N} within [${dMin}, ${dMax}]` };
 };
 
-export const validatePartition = (N, durations, { kMin = 2, kMax = 4, dMin = 3, dMax }) => {
+export const validatePartition = (N, durations, { kMin = 2, kMax = 4, dMin = 5, dMax }) => {
   if (!Array.isArray(durations) || !durations.length) return { ok: false, reason: 'no durations' };
   if (durations.length < kMin || durations.length > kMax) return { ok: false, reason: `${durations.length} shots, allowed ${kMin}..${kMax}` };
   const bad = durations.filter((d) => !Number.isInteger(d) || d < dMin || d > dMax);

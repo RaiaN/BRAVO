@@ -250,3 +250,36 @@ test('a changed plan after approval halts at the manifest, before any money', as
   assert.equal(wire.calls.animate.length, 0);
   assert.equal(wire.calls.imagine.length, 0);
 });
+
+test('a plan whose shot ids are not the node strings halts by name, before any shoot', async () => {
+  let p = makeProject();
+  const numericPlan = plan();
+  numericPlan.shots = numericPlan.shots.map((sh, i) => ({ ...sh, id: i + 1 }));
+  numericPlan.plates = [];
+  const seq = makeSequence({
+    brief: {
+      logline: 'A figure crosses a threshold.', targetSeconds: 12,
+      format: { fps: 24, resolution: '720p', ratio: 'adaptive', audio: true },
+      cast: [{ name: 'FIGURE-1', bibleEntryId: 'new' }], locations: [{ name: 'PLACE-1', bibleEntryId: 'bib_p' }],
+      dramatis: { protagonist: 'FIGURE-1', want: 'through', opposition: 'the threshold' },
+      seed: 7,
+    },
+    plan: numericPlan,
+    rulebookVersion: 'testver',
+    status: 'planned',
+  });
+  p = touch({ ...p, sequences: [seq] });
+  const threadId = p.threads[0].id;
+  p = latchThread(p, threadId, 'director', { subjectId: seq.id, title: 't' }).project;
+  p = appendMessage(p, threadId, {
+    role: 'tool', text: '',
+    tool: { name: 'sequence', input: {}, card: { tool: 'sequence', manifest: manifestOf(seq), manifestHash: fnv1a(JSON.stringify(manifestOf(seq))) }, output: null, approved: true, cost: 0 },
+  });
+  const messageId = p.threads[0].messages.at(-1).id;
+  const wire = makeWire({});
+  const state = await drive({ p, threadId, messageId, seqId: seq.id }, wire);
+  const q = sequenceById(state, seq.id);
+  assert.notEqual(q.status, 'assembled');
+  assert.match(q.run.halted.reason, /not in the manifest.*named for/s);
+  assert.equal(wire.calls.animate.length, 0, 'no render money was spent on a broken plan');
+});

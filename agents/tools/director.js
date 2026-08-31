@@ -198,7 +198,7 @@ export const breakdown = {
       calls += 1;
       const { parsed, error } = parseStrictJson(content);
       if (error) { failure = error; continue; }
-      const shots = (parsed.shots || []).map((sh) => ({ ...sh, prompt: '', flags: Array.isArray(sh.flags) ? sh.flags : [] }));
+      const shots = (parsed.shots || []).map((sh) => ({ ...sh, id: String(sh.id), beatId: String(sh.beatId), prompt: '', flags: Array.isArray(sh.flags) ? sh.flags : [] }));
       const candidate = {
         slot: SLOT,
         brief: seq.brief,

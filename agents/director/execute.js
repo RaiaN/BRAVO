@@ -208,6 +208,7 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
         const shotPlanId = id.slice(6);
         const idx = manifest.shots.findIndex((sh) => sh.id === shotPlanId);
         const sh = manifest.shots[idx];
+        if (!sh) throw new Error(`shot "${shotPlanId}" is not in the manifest — plan shot ids must be the strings their nodes are named for (got: ${manifest.shots.map((x) => `${typeof x.id} ${JSON.stringify(x.id)}`).join(', ')})`);
         const prevShot = idx > 0 ? manifest.shots[idx - 1] : null;
         const firstFrameUrl = prevShot ? node(`shoot:${prevShot.id}`).value?.lastFrameUrl || null : null;
         const plateRefs = manifest.plates.map((pl) => node(`plate:${pl.entity}`).value).filter(Boolean);

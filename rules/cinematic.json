@@ -59,7 +59,7 @@
       "appliesTo": "shotplan",
       "blocking": true,
       "failureKind": "deterministic",
-      "params": { "kMin": 2, "kMax": 4, "dMin": 3 },
+      "params": { "kMin": 2, "kMax": 4, "dMin": 5 },
       "provenance": { "origin": "seed" },
       "status": "active"
     },
