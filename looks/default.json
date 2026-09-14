@@ -1,9 +1,18 @@
 {
   "id": "default",
-  "look": { "style": "naturalistic live action, anamorphic, shallow focus", "grade": "cool shadows, warm practicals, restrained contrast" },
-  "constraints": ["no on-screen text", "no direct address to camera"],
+  "look": {
+    "style": "naturalistic live action, anamorphic, shallow focus",
+    "grade": "cool shadows, warm practicals, restrained contrast"
+  },
+  "constraints": [
+    "no on-screen text",
+    "no direct address to camera"
+  ],
   "audio": false,
-  "format": { "resolution": "720p", "ratio": "16:9" },
+  "format": {
+    "resolution": "1080p",
+    "ratio": "16:9"
+  },
   "world": "",
   "references": [],
   "doctrine": [
