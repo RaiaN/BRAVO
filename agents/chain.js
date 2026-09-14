@@ -60,19 +60,24 @@ const render = async ({ shot, previous, params, slot, client, journal, attempt }
   const polled = await client.pollVideo({ taskId });
   await journal.write('render.polled', { nodeId, shotId: shot.id, attempt, taskId, videoUrl: polled.videoUrl, videoCacheUrl: polled.videoCacheUrl || null, lastFrameUrl: polled.lastFrameUrl || null });
   const url = polled.videoCacheUrl || polled.videoUrl;
-  let preserved = null;
-  for (let tryN = 1; tryN <= 3 && !preserved?.assetId; tryN += 1) {
+  const name = `shot-${shot.id}-attempt${attempt}.mov`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`E-TAKE-FETCH: the take at ${url} responded ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  await journal.media(name, bytes);
+  const dataUrl = `data:video/quicktime;base64,${bytes.toString('base64')}`;
+  let uploaded = null;
+  for (let tryN = 1; tryN <= 3 && !uploaded?.assetId; tryN += 1) {
     if (tryN > 1) await sleep(5000);
-    preserved = await post('/api/film/preserve', { url, name: `shot-${shot.id}-attempt${attempt}.mov` });
-    await journal.write('render.preserved', { nodeId, shotId: shot.id, attempt, try: tryN, request: { url }, response: preserved });
+    uploaded = await post('/api/film/upload', { dataUrl, name });
+    await journal.write('render.registered', { nodeId, shotId: shot.id, attempt, try: tryN, bytes: bytes.length, response: uploaded });
   }
-  const stableUrl = preserved?.url || url;
-  if (!preserved?.assetId) {
-    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} in 3 tries (the server log holds the provider's reason); the next shot extends from the take's presigned url instead of an asset id`, response: preserved });
+  const stableUrl = uploaded?.cacheUrl || uploaded?.url || url;
+  if (!uploaded?.assetId) {
+    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} in 3 tries (the dev-server log line "[film/upload] Assets API registration skipped:" holds the provider's reason); the next shot extends from the take's url instead of an asset id`, response: uploaded });
   }
-  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, stableUrl, assetId: preserved?.assetId || null });
-  await journal.media(`shot-${shot.id}-attempt${attempt}.mov`, url);
-  return { taskId, url: stableUrl, assetId: preserved?.assetId || null };
+  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, stableUrl, assetId: uploaded?.assetId || null });
+  return { taskId, url: stableUrl, assetId: uploaded?.assetId || null };
 };
 
 export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000 }) => {

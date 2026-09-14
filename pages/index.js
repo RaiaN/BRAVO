@@ -1,6 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 
 const GLYPH = { pending: '○', running: '⟳', done: '✓' };
+const StatusBar = ({ shot }) => {
+  const done = shot.status === 'done';
+  const running = shot.status === 'running';
+  if (!done && !running) return null;
+  return (
+    <div className={`bar ${shot.status}${shot.shipped === 'absent' ? ' absent' : ''}`}>
+      <span className="fill" />
+      <span className="lbl">{done ? (shot.shipped === 'absent' ? 'absent' : 'done') : 'rendering'}</span>
+      <style jsx>{`
+        .bar { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
+        .fill { flex: 1; height: 4px; border-radius: 2px; background: var(--state-settled); }
+        .running .fill { background: var(--state-working); animation: pulse 1.2s ease-in-out infinite; }
+        .absent .fill { background: var(--state-stale); }
+        .lbl { flex: none; font-size: 11px; color: var(--muted); min-width: 60px; text-align: right; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+      `}</style>
+    </div>
+  );
+};
 
 export default function Extend() {
   const [idea, setIdea] = useState('');
@@ -78,6 +97,7 @@ export default function Extend() {
                 <span className="g" aria-hidden="true">{GLYPH[sh.status] || '○'}</span>
                 <div className="body">
                   <div className="line"><b>{sh.id}</b> · {sh.seconds}s{sh.setup ? ` · ${sh.setup}` : ''}{sh.attempt ? ` · attempt ${sh.attempt}` : ''}{sh.shipped ? ` · ${sh.shipped}` : ''}{sh.extendsFrom ? ' · extends previous' : ''}</div>
+                  <StatusBar shot={sh} />
                   {(sh.prompt || sh.subject) && <div className="sub">{sh.prompt || `${sh.subject} · ${sh.force}`}</div>}
                   {sh.qc.map((q) => <div key={q.attempt} className={`qc ${q.pass ? 'pass' : 'fail'}`}>QC {q.attempt}: {q.pass ? 'pass' : 'fail'}{q.score != null ? ` (${q.score})` : ''}{q.findings.length ? ` — ${q.findings.join('; ')}` : ''}</div>)}
                   {sh.decisions.map((d, i) => <div key={i} className="dec">judge: {d.decision}{d.reason ? ` — ${d.reason}` : ''}</div>)}

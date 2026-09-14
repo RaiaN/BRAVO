@@ -35,7 +35,7 @@ npm run extend -- --idea "<the story>" --seconds 120 --server http://127.0.0.1:3
 
 ## Provider contract
 
-Extension requests carry the previous take as `asset://<assetId>` (`reference_video`), a prompt beginning `Extend @Video 1 by N seconds.`, `ratio: adaptive`, the shot's `duration`, and `output_format: mov`. Every take is registered as an asset through `/api/film/preserve` so the next shot can extend it. A failed render retries three times with a pause; a shot that never renders is skipped and the chain continues from the last good take.
+Extension requests carry the previous take as `asset://<assetId>` (`reference_video`), a prompt beginning `Extend @Video 1 by N seconds.`, `ratio: adaptive`, the shot's `duration`, and `output_format: mov`. Every take is downloaded once, saved to the journal, and registered as an asset through `/api/film/upload` typed `video/quicktime` (the kit's media store does not know `.mov`, so the preserve route would skip registration). If the Assets API refuses it, the fault is journaled and the next shot extends from the take's url. A failed render retries three times with a pause; a shot that never renders is skipped and the chain continues from the last good take.
 
 ## Environment
 
