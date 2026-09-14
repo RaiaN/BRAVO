@@ -50,7 +50,7 @@ export default function handler(req, res) {
     fs.mkdirSync(runsDir(), { recursive: true });
     const log = fs.openSync(path.join(runsDir(), `${runId}.log`), 'a');
     const server = `http://${req.headers.host}`;
-    const child = spawn(process.execPath, ['--env-file-if-exists=.env.local', '--import', './tests/lib/hook.mjs', 'agents/run-extend.mjs', '--idea', String(idea).trim(), '--seconds', String(n), '--server', server, '--run-id', runId], {
+    const child = spawn(process.execPath, ['--env-file-if-exists=.env.local', '--import', './tools/hook.mjs', 'agents/run-extend.mjs', '--idea', String(idea).trim(), '--seconds', String(n), '--server', server, '--run-id', runId], {
       cwd: process.cwd(), detached: true, stdio: ['ignore', log, log], env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH || ''}` },
     });
     child.unref();
