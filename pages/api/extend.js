@@ -3,7 +3,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 
 const RUN_ID = /^[a-z0-9_-]+$/i;
-const MEDIA = /^[a-z0-9][a-z0-9._-]{0,120}\.(mp4|jpg|jpeg|png|webp)$/i;
+const MEDIA = /^[a-z0-9][a-z0-9._-]{0,120}\.(mp4|mov|jpg|jpeg|png|webp)$/i;
 const runsDir = () => path.join(process.cwd(), 'runs');
 
 const newRunId = () => `run_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -26,7 +26,9 @@ const summarize = (runId) => {
     const qc = kind('qc.take').filter((r) => r.data.shotId === sh.id);
     const decisions = kind('decision').filter((r) => r.data.shotId === sh.id).map((r) => ({ attempt: r.data.attempt, decision: r.data.decision, reason: r.data.reason }));
     const faults = kind('fault').filter((r) => r.data.shotId === sh.id).map((r) => ({ attempt: r.data.attempt, kind: r.data.kind, reason: r.data.reason }));
-    return { ...sh, status: last?.status || 'pending', attempt: last?.attempt ?? null, shipped: last?.shipped || null, extendsFrom: last?.extendsFrom || null, qc: qc.map((r) => ({ attempt: r.data.attempt, pass: r.data.pass, score: r.data.score, findings: (r.data.findings || []).map((f) => `${f.rule}: ${f.detail}`) })), decisions, faults };
+    const mediaDir = path.join(dir, 'media');
+    const takes = fs.existsSync(mediaDir) ? fs.readdirSync(mediaDir).filter((f) => f.startsWith(`shot-${sh.id}-`) && /\.(mp4|mov)$/.test(f)).sort() : [];
+    return { ...sh, status: last?.status || 'pending', attempt: last?.attempt ?? null, shipped: last?.shipped || null, extendsFrom: last?.extendsFrom || null, takes, qc: qc.map((r) => ({ attempt: r.data.attempt, pass: r.data.pass, score: r.data.score, findings: (r.data.findings || []).map((f) => `${f.rule}: ${f.detail}`) })), decisions, faults };
   });
   const final = kind('final').at(-1)?.data || null;
   const failed = kind('pass.failed').at(-1)?.data || null;
@@ -62,7 +64,7 @@ export default function handler(req, res) {
       const p = path.join(runsDir(), runId, 'media', String(file));
       if (!fs.existsSync(p)) return res.status(404).json({ error: 'no such media yet' });
       const stat = fs.statSync(p);
-      res.setHeader('Content-Type', String(file).endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+      res.setHeader('Content-Type', String(file).endsWith('.mov') ? 'video/quicktime' : String(file).endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
       res.setHeader('Content-Length', stat.size);
       res.setHeader('Accept-Ranges', 'bytes');
       return fs.createReadStream(p).pipe(res);

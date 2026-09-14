@@ -1,4 +1,4 @@
-import { animate } from '../utils/film/core/operations.js';
+import { getModel } from '../utils/film/suiteConfig.js';
 
 const json = (content, what) => {
   const body = String(content || '').trim().replace(/^```[a-z]*\n?|```$/g, '').trim();
@@ -13,7 +13,6 @@ const post = async (route, body) => {
   return data;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CONSTRAINT = /TaskTypeConstraint|duration|ratio/i;
 
 const plan = async ({ idea, style, seconds, dMin, dMax, client, journal }) => {
   const kMin = Math.ceil(seconds / dMax);
@@ -43,25 +42,27 @@ const plan = async ({ idea, style, seconds, dMin, dMax, client, journal }) => {
 
 const render = async ({ shot, previous, params, slot, client, journal, attempt }) => {
   const nodeId = `shot:${shot.id}`;
-  const request = (withDuration) => (previous
-    ? { motion: shot.prompt, videoRefUrls: [`asset://${previous}`], duration: withDuration ? shot.seconds : 'auto', ratio: withDuration ? params.ratio : null, resolution: params.resolution, generateAudio: params.audio, modelKey: slot }
-    : { motion: shot.prompt, duration: shot.seconds, resolution: params.resolution, ratio: params.ratio, generateAudio: params.audio, modelKey: slot });
-  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, mode: previous ? 'extend' : 'generate', motion: shot.prompt, sourceAssetId: previous || null, seconds: shot.seconds });
+  const model = getModel(slot);
+  const text = previous ? `Extend @Video 1 by ${shot.seconds} seconds. ${shot.prompt}` : shot.prompt;
+  const content = previous
+    ? [{ type: 'text', text }, { type: 'video_url', video_url: { url: `asset://${previous}` }, role: 'reference_video' }]
+    : [{ type: 'text', text }];
+  const body = { model, content, resolution: params.resolution, ratio: previous ? 'adaptive' : params.ratio, duration: shot.seconds, generate_audio: params.audio, watermark: false, return_last_frame: true, output_format: 'mov' };
+  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, mode: previous ? 'extend' : 'generate', body });
   let started;
-  try { started = await animate(request(true), { client }); } catch (err) {
-    if (previous && CONSTRAINT.test(err.message)) {
-      await journal.write('fault', { node: nodeId, kind: 'constraint', reason: err.message, adaptation: 're-sent without duration and ratio' });
-      started = await animate(request(false), { client });
-    } else { await journal.result(intentId, { error: err.message }); throw err; }
-  }
-  await journal.result(intentId, { taskId: started.taskId, promptUsed: started.prompt });
-  const polled = await client.pollVideo({ taskId: started.taskId });
+  try {
+    started = await post('/api/seedance', body);
+  } catch (err) { await journal.result(intentId, { error: err.message }); throw err; }
+  const taskId = started.id || started.task_id;
+  if (!taskId) throw new Error('E-SEEDANCE: no task id returned');
+  await journal.result(intentId, { taskId });
+  const polled = await client.pollVideo({ taskId });
   const url = polled.videoCacheUrl || polled.videoUrl;
-  const preserved = await post('/api/film/preserve', { url, name: `shot-${shot.id}-attempt${attempt}.mp4` });
+  const preserved = await post('/api/film/preserve', { url, name: `shot-${shot.id}-attempt${attempt}.mov` });
   if (!preserved.assetId) throw new Error(`E-TAKE-NO-ASSET: shot ${shot.id} could not be registered as an asset`);
-  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId: started.taskId, url, assetId: preserved.assetId });
-  await journal.media(`shot-${shot.id}-attempt${attempt}.mp4`, url);
-  return { taskId: started.taskId, url, assetId: preserved.assetId };
+  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, assetId: preserved.assetId });
+  await journal.media(`shot-${shot.id}-attempt${attempt}.mov`, url);
+  return { taskId, url, assetId: preserved.assetId };
 };
 
 export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000 }) => {
