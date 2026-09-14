@@ -329,8 +329,9 @@ export const intake = async ({ journal, runId, idea, ideaSource, seconds, style:
   if (tosMissing.length) await refuse('E-INTAKE-TOS', `the media store is not configured — set ${tosMissing.join(', ')}`);
 
   const engine = mode ?? policy.mode;
+  let window = null;
   if (engine === 'staged') {
-    const window = { ...rulebook.ruleById('CIN-005').params, dMax: maxShotSeconds(VIDEO_SLOT) };
+    window = { ...rulebook.ruleById('CIN-005').params, dMax: maxShotSeconds(VIDEO_SLOT) };
     const feas = feasibility(seconds, window);
     if (!feas.ok) await refuse('E-INTAKE-WINDOW', `${seconds} seconds is outside the CIN-005 window: ${feas.reason}`, { window });
   } else {
@@ -339,10 +340,11 @@ export const intake = async ({ journal, runId, idea, ideaSource, seconds, style:
     const kMin = Math.ceil(seconds / hi);
     const kMax = Math.floor(seconds / lo);
     if (kMin > kMax) await refuse('E-INTAKE-WINDOW', `${seconds} seconds cannot be cut into shots of ${lo}-${hi}s`, { secondsMin: lo, secondsMax: hi });
+    window = { kMin, kMax, dMin: lo, dMax: hi };
     await journal.write('window', { engine, seconds, kMin, kMax, dMin: lo, dMax: hi });
   }
 
-  const gate = runPolicyGate(rulebook, 'POL-000', {
+  const gate = await guard('E-INTAKE-POL-000', () => runPolicyGate(rulebook, 'POL-000', {
     intake: {
       audio: style.audio,
       slots: { video: slots.video.id, image: slots.image.id, reason: slots.reason.id, ...(audioJudge ? { audioJudge } : {}) },
@@ -351,7 +353,7 @@ export const intake = async ({ journal, runId, idea, ideaSource, seconds, style:
       style,
       policyValues: policy,
     },
-  });
+  }));
   if (!gate.pass) await refuse('E-INTAKE-POL-000', `POL-000 refused: ${gate.blockers.map((b) => b.subject).join(', ')}`, { gate });
 
   const record = {
@@ -752,6 +754,9 @@ export const runFilm = async ({ runsDir, knowledgeDir, rulesDir, runId, idea, id
   try {
     intaken = await intake({ journal, runId, idea, ideaSource, seconds, style, policy, prices, rulesDir, server, mode });
   } catch (err) {
+    if (!(err.code && String(err.code).startsWith('E-INTAKE'))) {
+      await journal.write('intake.refused', { runId, code: 'E-INTAKE-CRASH', detail: err.message, stack: String(err.stack || '').split('\n').slice(0, 6) });
+    }
     await journal.drain();
     await journal.close();
     throw err;

@@ -77,8 +77,8 @@ export default function Extend() {
               <li key={sh.id} className={sh.status}>
                 <span className="g" aria-hidden="true">{GLYPH[sh.status] || '○'}</span>
                 <div className="body">
-                  <div className="line"><b>{sh.id}</b> · {sh.seconds}s · {sh.setup}{sh.attempt ? ` · attempt ${sh.attempt}` : ''}{sh.shipped ? ` · ${sh.shipped}` : ''}{sh.extendsFrom ? ' · extends previous' : ''}</div>
-                  <div className="sub">{sh.subject} · {sh.force}</div>
+                  <div className="line"><b>{sh.id}</b> · {sh.seconds}s{sh.setup ? ` · ${sh.setup}` : ''}{sh.attempt ? ` · attempt ${sh.attempt}` : ''}{sh.shipped ? ` · ${sh.shipped}` : ''}{sh.extendsFrom ? ' · extends previous' : ''}</div>
+                  {(sh.prompt || sh.subject) && <div className="sub">{sh.prompt || `${sh.subject} · ${sh.force}`}</div>}
                   {sh.qc.map((q) => <div key={q.attempt} className={`qc ${q.pass ? 'pass' : 'fail'}`}>QC {q.attempt}: {q.pass ? 'pass' : 'fail'}{q.score != null ? ` (${q.score})` : ''}{q.findings.length ? ` — ${q.findings.join('; ')}` : ''}</div>)}
                   {sh.decisions.map((d, i) => <div key={i} className="dec">judge: {d.decision}{d.reason ? ` — ${d.reason}` : ''}</div>)}
                   {sh.faults.map((f, i) => <div key={i} className="fault">fault ({f.kind}): {f.reason}</div>)}
@@ -93,7 +93,7 @@ export default function Extend() {
       )}
 
       <style jsx>{`
-        .page { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; color: var(--ink); }
+        .page { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 32px max(20px, calc(50% - 410px)) 80px; color: var(--ink); }
         h1 { font-size: 22px; font-weight: 550; margin: 0 0 6px; }
         .lede { color: var(--muted); margin: 0 0 20px; line-height: 1.5; }
         .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }

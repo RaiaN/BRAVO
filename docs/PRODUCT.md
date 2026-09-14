@@ -19,6 +19,24 @@ Exactly two ways in, one engine:
 
 Everything else in the repository is a workshop tool, not the product. The chat app stays for development; it is not the door.
 
+## The one-page prototype
+
+The product is nine files; everything else is workshop:
+
+| file | role |
+|---|---|
+| `pages/extend.js` | the page: story, seconds, one button, live progress, the film |
+| `pages/api/extend.js` | starts a pass as a detached process; serves progress and the film from the run directory |
+| `agents/run-extend.mjs` | the runner: journal, rules, look, client, the loop, a one-screen report; fixed policy (five attempts, 20–30 s shots) |
+| `agents/extend.js` | the loop: plan, render, extend, QC, judge, edit or regenerate, stitch |
+| `agents/film-qc.js` | the five rules' checks and the one QC call per take |
+| `agents/journal.js` | the journal |
+| `rules/film.json` | the five rules |
+| `looks/default.json` | the look |
+| the transport kit | Seedance, Seedream, the reasoner, the media store |
+
+No policy file, no price file, no rulebook loader, no project state, no knowledge fold in the product path. The CLI (`bravo film`, `bravo extend`) and the browser director remain as the workshop.
+
 ## Principles
 
 1. One code path. `agents/extend.js` is the engine; nothing else renders in the product. Any feature enters there or not at all.
