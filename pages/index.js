@@ -102,7 +102,16 @@ export default function Extend() {
                   {sh.qc.map((q) => <div key={q.attempt} className={`qc ${q.pass ? 'pass' : 'fail'}`}>QC {q.attempt}: {q.pass ? 'pass' : 'fail'}{q.score != null ? ` (${q.score})` : ''}{q.findings.length ? ` — ${q.findings.join('; ')}` : ''}</div>)}
                   {sh.decisions.map((d, i) => <div key={i} className="dec">judge: {d.decision}{d.reason ? ` — ${d.reason}` : ''}</div>)}
                   {sh.faults.map((f, i) => <div key={i} className="fault">fault ({f.kind}): {f.reason}</div>)}
-                  {(sh.takes || []).map((f) => <video key={f} className="take" controls preload="metadata" src={`/api/extend?runId=${encodeURIComponent(runId)}&file=${encodeURIComponent(f)}`} />)}
+                  {(sh.takes || []).map((f) => {
+                    const review = (sh.reviews || []).find((r) => r.file === f);
+                    const picked = sh.chosen?.file === f;
+                    return (
+                      <div key={f} className={`cand${picked ? ' picked' : ''}`}>
+                        <video className="take" controls preload="metadata" src={`/api/extend?runId=${encodeURIComponent(runId)}&file=${encodeURIComponent(f)}`} />
+                        <div className="verdict">{picked ? `Persona's pick · ${sh.chosen.reason}` : review ? `${review.score}/10 · ${review.notes}` : 'awaiting Persona'}</div>
+                      </div>
+                    );
+                  })}
                 </div>
               </li>
             ))}
@@ -138,6 +147,10 @@ export default function Extend() {
         .final { margin-top: 14px; font-size: 13px; }
         .film { width: 100%; margin-top: 10px; border-radius: 10px; background: #000; }
         .take { width: 100%; max-width: 480px; display: block; margin-top: 8px; border-radius: 8px; background: #000; }
+        .cand { max-width: 480px; padding-bottom: 6px; border-left: 3px solid transparent; padding-left: 8px; margin-left: -11px; }
+        .cand.picked { border-left-color: var(--state-settled); }
+        .verdict { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .picked .verdict { color: var(--state-settled); }
         .rep { font-size: 12px; color: var(--faint); }
         code { font-size: 11.5px; }
       `}</style>

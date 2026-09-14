@@ -40,16 +40,16 @@ const plan = async ({ idea, style, seconds, dMin, dMax, client, journal }) => {
   throw new Error(`E-PLAN: no lawful plan in 3 attempts — ${rejected}`);
 };
 
-const render = async ({ shot, previous, params, slot, client, journal, attempt }) => {
+const render = async ({ shot, prompt, variant, previous, params, slot, client, journal, attempt }) => {
   const nodeId = `shot:${shot.id}`;
   const model = getModel(slot);
-  const text = previous ? `Extend @Video 1 by ${shot.seconds} seconds. ${shot.prompt}` : shot.prompt;
+  const text = previous ? `Extend @Video 1 by ${shot.seconds} seconds. ${prompt}` : prompt;
   const sourceRef = previous ? (previous.assetId ? `asset://${previous.assetId}` : previous.url) : null;
   const content = previous
     ? [{ type: 'text', text }, { type: 'video_url', video_url: { url: sourceRef }, role: 'reference_video' }]
     : [{ type: 'text', text }];
   const body = { model, content, resolution: params.resolution, ratio: previous ? 'adaptive' : params.ratio, duration: shot.seconds, generate_audio: params.audio, watermark: false, return_last_frame: true, output_format: 'mov' };
-  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, mode: previous ? 'extend' : 'generate', sourceRef, body });
+  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, variant, mode: previous ? 'extend' : 'generate', sourceRef, body });
   let started;
   try {
     started = await post('/api/seedance', body);
@@ -58,9 +58,9 @@ const render = async ({ shot, previous, params, slot, client, journal, attempt }
   if (!taskId) throw new Error('E-SEEDANCE: no task id returned');
   await journal.result(intentId, { taskId });
   const polled = await client.pollVideo({ taskId });
-  await journal.write('render.polled', { nodeId, shotId: shot.id, attempt, taskId, videoUrl: polled.videoUrl, videoCacheUrl: polled.videoCacheUrl || null, lastFrameUrl: polled.lastFrameUrl || null });
+  await journal.write('render.polled', { nodeId, shotId: shot.id, attempt, variant, taskId, videoUrl: polled.videoUrl, videoCacheUrl: polled.videoCacheUrl || null, lastFrameUrl: polled.lastFrameUrl || null });
   const url = polled.videoCacheUrl || polled.videoUrl;
-  const name = `shot-${shot.id}-attempt${attempt}.mov`;
+  const name = `shot-${shot.id}-attempt${attempt}-v${variant}.mov`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`E-TAKE-FETCH: the take at ${url} responded ${res.status}`);
   const bytes = Buffer.from(await res.arrayBuffer());
@@ -70,17 +70,78 @@ const render = async ({ shot, previous, params, slot, client, journal, attempt }
   for (let tryN = 1; tryN <= 3 && !uploaded?.assetId; tryN += 1) {
     if (tryN > 1) await sleep(5000);
     uploaded = await post('/api/film/upload', { dataUrl, name });
-    await journal.write('render.registered', { nodeId, shotId: shot.id, attempt, try: tryN, bytes: bytes.length, response: uploaded });
+    await journal.write('render.registered', { nodeId, shotId: shot.id, attempt, variant, try: tryN, bytes: bytes.length, response: uploaded });
   }
   const stableUrl = uploaded?.cacheUrl || uploaded?.url || url;
   if (!uploaded?.assetId) {
-    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} in 3 tries (the dev-server log line "[film/upload] Assets API registration skipped:" holds the provider's reason); the next shot extends from the take's url instead of an asset id`, response: uploaded });
+    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, variant, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} variant ${variant} in 3 tries (the dev-server log line "[film/upload] Assets API registration skipped:" holds the provider's reason); the next shot extends from the take's url instead of an asset id`, response: uploaded });
   }
-  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, stableUrl, assetId: uploaded?.assetId || null });
-  return { taskId, url: stableUrl, assetId: uploaded?.assetId || null };
+  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, variant, taskId, url, stableUrl, assetId: uploaded?.assetId || null });
+  return { taskId, variant, prompt, file: name, url: stableUrl, providerUrl: polled.videoUrl, assetId: uploaded?.assetId || null };
 };
 
-export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000 }) => {
+const variate = async ({ shot, previous, idea, candidates, client, journal, attempt }) => {
+  const system = [
+    `You rewrite one shot description of a film into ${candidates} distinct variants for a video model. Every variant keeps the same people, place, action and duration and, when the shot continues previous footage, keeps that continuity; they differ in wording, camera treatment, light, blocking detail and the small beats that make the moment interesting. Return ONLY a JSON object, no prose, no fences:`,
+    '{ "prompts": ["", ""] }',
+    'Write in English. Describe people by role, build, wardrobe and expression, never by resemblance to anyone real. Never name brands, products, titles, artworks, characters, songs, celebrities or any on-screen text; a video model refuses prompts that resemble protected material, so keep everything generic and original.',
+  ].join('\n');
+  let rejected = null;
+  for (let ask = 1; ask <= 3; ask += 1) {
+    const { content } = await client.reason({ prompt: `THE STORY:\n${idea}\n\nTHE SHOT (${shot.seconds}s${previous ? ', continues the previous shot' : ', opens the film'}):\n${shot.prompt}${rejected ? `\n\nYOUR LAST ANSWER WAS REJECTED:\n${rejected}\n\nReturn the corrected JSON only.` : ''}`, systemPrompt: system });
+    const v = json(content, 'the variants');
+    const prompts = Array.isArray(v.prompts) ? v.prompts.map((x) => String(x || '').trim()).filter(Boolean) : [];
+    const problems = prompts.length === candidates ? [] : [`${prompts.length} prompts; need exactly ${candidates}`];
+    await journal.write('variate', { shotId: shot.id, attempt, ask, prompts, problems, response: content });
+    if (!problems.length) return prompts;
+    rejected = problems.join('\n');
+  }
+  throw new Error(`E-VARIATE: no lawful variants for shot ${shot.id} in 3 asks`);
+};
+
+const PERSONA = 'You are Persona, a trained film director and screenwriter reviewing takes for a film. You judge a take by what a demanding audience feels: clear storytelling and a readable moment, believable performance, purposeful camera and light, continuity with the footage it extends, and freedom from artifacts, warping, frozen motion or gibberish. Return ONLY a JSON object, no prose, no fences.';
+
+const choose = async ({ shot, candidates, idea, logline, client, journal, attempt }) => {
+  const reviews = await Promise.all(candidates.map(async (c) => {
+    const { content } = await client.reason({
+      prompt: `THE FILM: ${logline}\nTHE STORY: ${idea}\n\nTHE SHOT (${shot.seconds}s): ${shot.prompt}\nTHE PROMPT THIS TAKE WAS RENDERED FROM: ${c.prompt}\n\nWatch the attached take and answer { "score": <0-10>, "notes": "<what works, what fails, in two or three sentences>" }.`,
+      systemPrompt: PERSONA,
+      video: c.providerUrl,
+    });
+    const r = json(content, `Persona's review of variant ${c.variant}`);
+    const score = Number(r.score);
+    if (!Number.isFinite(score)) throw new Error(`E-PERSONA: variant ${c.variant} review has no numeric score`);
+    await journal.write('persona.review', { shotId: shot.id, attempt, variant: c.variant, file: c.file, score, notes: String(r.notes || ''), response: content });
+    return { variant: c.variant, score, notes: String(r.notes || '') };
+  }));
+  let chosen = null; let reason = '';
+  if (candidates.length === 1) { chosen = candidates[0]; reason = 'the only take that rendered'; } else {
+    const { content } = await client.reason({
+      prompt: `THE FILM: ${logline}\nTHE SHOT (${shot.seconds}s): ${shot.prompt}\n\nYOUR REVIEWS OF THE TAKES:\n${reviews.map((r) => `variant ${r.variant} — score ${r.score} — ${r.notes}`).join('\n')}\n\nChoose the take the film should keep, the most interesting one that still serves the story. Answer { "variant": <integer>, "reason": "<one sentence>" }.`,
+      systemPrompt: PERSONA,
+    });
+    const d = json(content, "Persona's choice");
+    chosen = candidates.find((c) => c.variant === Number(d.variant)) || null;
+    if (!chosen) throw new Error(`E-PERSONA: chose variant ${JSON.stringify(d.variant)}, which did not render`);
+    reason = String(d.reason || '');
+  }
+  await journal.write('persona.choice', { shotId: shot.id, attempt, variant: chosen.variant, file: chosen.file, reason, reviews });
+  return chosen;
+};
+
+const renderShot = async ({ shot, previous, idea, logline, candidates, params, slot, client, journal, attempt }) => {
+  const prompts = await variate({ shot, previous, idea, candidates, client, journal, attempt });
+  const settled = await Promise.allSettled(prompts.map((prompt, i) => render({ shot, prompt, variant: i + 1, previous, params, slot, client, journal, attempt })));
+  const rendered = [];
+  for (const [i, r] of settled.entries()) {
+    if (r.status === 'fulfilled') rendered.push(r.value);
+    else await journal.write('fault', { node: `shot:${shot.id}`, shotId: shot.id, attempt, variant: i + 1, reason: r.reason?.message || String(r.reason) });
+  }
+  if (!rendered.length) throw new Error(`E-SHOT: none of ${prompts.length} variants rendered`);
+  return choose({ shot, candidates: rendered, idea, logline, client, journal, attempt });
+};
+
+export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000, candidates = 5 }) => {
   const params = { resolution: style.format.resolution, ratio: style.format.ratio, audio: style.audio === true };
   const p = await plan({ idea, style, seconds, dMin, dMax, client, journal });
   const takes = [];
@@ -89,13 +150,13 @@ export const runChain = async ({ idea, style, seconds, client, journal, runId, s
     await journal.write('node', { id: `shot:${shot.id}`, status: 'running', extendsFrom: previous });
     let take = null;
     for (let attempt = 1; attempt <= attempts && !take; attempt += 1) {
-      try { take = await render({ shot, previous, params, slot, client, journal, attempt }); } catch (err) {
+      try { take = await renderShot({ shot, previous, idea, logline: p.logline, candidates, params, slot, client, journal, attempt }); } catch (err) {
         await journal.write('fault', { node: `shot:${shot.id}`, shotId: shot.id, attempt, reason: err.message });
         if (attempt < attempts) await sleep(backoffMs);
       }
     }
     if (!take) { await journal.write('node', { id: `shot:${shot.id}`, status: 'done', shipped: 'absent' }); continue; }
-    await journal.write('node', { id: `shot:${shot.id}`, status: 'done', shipped: 'rendered', takeId: take.taskId, assetId: take.assetId, url: take.url });
+    await journal.write('node', { id: `shot:${shot.id}`, status: 'done', shipped: 'rendered', takeId: take.taskId, variant: take.variant, file: take.file, assetId: take.assetId, url: take.url });
     takes.push({ shot, take });
     previous = { assetId: take.assetId, url: take.url };
   }

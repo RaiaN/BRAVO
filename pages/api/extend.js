@@ -28,7 +28,9 @@ const summarize = (runId) => {
     const faults = kind('fault').filter((r) => r.data.shotId === sh.id).map((r) => ({ attempt: r.data.attempt, kind: r.data.kind, reason: r.data.reason }));
     const mediaDir = path.join(dir, 'media');
     const takes = fs.existsSync(mediaDir) ? fs.readdirSync(mediaDir).filter((f) => f.startsWith(`shot-${sh.id}-`) && /\.(mp4|mov)$/.test(f)).sort() : [];
-    return { ...sh, status: last?.status || 'pending', attempt: last?.attempt ?? null, shipped: last?.shipped || null, extendsFrom: last?.extendsFrom || null, takes, qc: qc.map((r) => ({ attempt: r.data.attempt, pass: r.data.pass, score: r.data.score, findings: (r.data.findings || []).map((f) => `${f.rule}: ${f.detail}`) })), decisions, faults };
+    const choice = kind('persona.choice').filter((r) => r.data.shotId === sh.id).at(-1)?.data || null;
+    const reviews = kind('persona.review').filter((r) => r.data.shotId === sh.id).map((r) => ({ file: r.data.file, variant: r.data.variant, score: r.data.score, notes: r.data.notes }));
+    return { ...sh, status: last?.status || 'pending', chosen: choice ? { file: choice.file, variant: choice.variant, reason: choice.reason } : null, reviews, attempt: last?.attempt ?? null, shipped: last?.shipped || null, extendsFrom: last?.extendsFrom || null, takes, qc: qc.map((r) => ({ attempt: r.data.attempt, pass: r.data.pass, score: r.data.score, findings: (r.data.findings || []).map((f) => `${f.rule}: ${f.detail}`) })), decisions, faults };
   });
   const final = kind('final').at(-1)?.data || null;
   const failed = kind('pass.failed').at(-1)?.data || null;

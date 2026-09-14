@@ -16,7 +16,7 @@ if (!idea.trim() || !server || !Number.isInteger(seconds)) { console.error('usag
 const real = globalThis.fetch;
 globalThis.fetch = (input, init) => real(typeof input === 'string' && input.startsWith('/') ? `${server}${input}` : input, init);
 
-const POLICY = { attempts: 3, backoffMs: 20000, dMin: 20, dMax: 30 };
+const POLICY = { attempts: 3, backoffMs: 20000, dMin: 20, dMax: 30, candidates: 5 };
 
 const main = async () => {
   const dir = path.join(cwd, 'runs', runId);
@@ -29,7 +29,7 @@ const main = async () => {
     const style = JSON.parse(fs.readFileSync(path.join(cwd, 'looks', 'default.json'), 'utf8'));
     await journal.write('intake', { models: Object.fromEntries(Object.entries(cfg.models).map(([k, v]) => [k, !!v])), style: style.id, mode: 'chain — no QC, no rules' });
     const client = createBrowserClient(undefined);
-    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs });
+    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs, candidates: POLICY.candidates });
     const lines = [`# ${runId}`, '', `**${out.plan.logline}**`, '', `Target ${seconds}s · measured ${out.slice.totalMeasured}s at ${out.slice.fps} fps`, '', '| shot | seconds | attempts | shipped | score |', '|---|---|---|---|---|', ...out.shots.map((s) => `| ${s.shotId} | ${s.seconds} | — | rendered | — |`), '', `Film: media/slice.mp4 · journal: journal.ndjson`];
     fs.writeFileSync(path.join(dir, 'report.md'), lines.join('\n') + '\n');
     await journal.write('complete', { runId, status: 'complete', slice: out.slice, shots: out.shots.length });
