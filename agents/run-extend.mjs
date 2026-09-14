@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openJournal } from './journal.js';
 import { runChain } from './chain.js';
+import { problemsIn } from './persona.js';
 import { createBrowserClient } from '../utils/film/core/client.js';
 import { applyDeployModels } from '../utils/film/suiteConfig.js';
 
@@ -27,9 +28,12 @@ const main = async () => {
     if (!cfg?.models) throw new Error(`E-SERVER: ${server} returned no models`);
     applyDeployModels(cfg.models);
     const style = JSON.parse(fs.readFileSync(path.join(cwd, 'looks', 'default.json'), 'utf8'));
-    await journal.write('intake', { models: Object.fromEntries(Object.entries(cfg.models).map(([k, v]) => [k, !!v])), style: style.id, mode: 'chain — no QC, no rules' });
+    const persona = JSON.parse(fs.readFileSync(path.join(cwd, 'looks', 'persona.json'), 'utf8'));
+    const personaProblems = problemsIn(persona);
+    if (personaProblems.length) throw new Error(`E-PERSONA-CONFIG: looks/persona.json — ${personaProblems.join('; ')}`);
+    await journal.write('intake', { models: Object.fromEntries(Object.entries(cfg.models).map(([k, v]) => [k, !!v])), style: style.id, persona, mode: 'chain — no QC, no rules' });
     const client = createBrowserClient(undefined);
-    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs, candidates: POLICY.candidates });
+    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs, candidates: POLICY.candidates, persona });
     const lines = [`# ${runId}`, '', `**${out.plan.logline}**`, '', `Target ${seconds}s · measured ${out.slice.totalMeasured}s at ${out.slice.fps} fps`, '', '| shot | seconds | attempts | shipped | score |', '|---|---|---|---|---|', ...out.shots.map((s) => `| ${s.shotId} | ${s.seconds} | — | rendered | — |`), '', `Film: media/slice.mp4 · journal: journal.ndjson`];
     fs.writeFileSync(path.join(dir, 'report.md'), lines.join('\n') + '\n');
     await journal.write('complete', { runId, status: 'complete', slice: out.slice, shots: out.shots.length });

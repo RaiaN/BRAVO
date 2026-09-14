@@ -1,4 +1,5 @@
 import { getModel } from '../utils/film/suiteConfig.js';
+import { fill } from './persona.js';
 
 const json = (content, what) => {
   const body = String(content || '').trim().replace(/^```[a-z]*\n?|```$/g, '').trim();
@@ -40,7 +41,7 @@ const plan = async ({ idea, style, seconds, dMin, dMax, client, journal }) => {
   throw new Error(`E-PLAN: no lawful plan in 3 attempts — ${rejected}`);
 };
 
-const render = async ({ shot, prompt, variant, previous, params, slot, client, journal, attempt }) => {
+const render = async ({ shot, prompt, variant, previous, params, slot, journal, client, attempt }) => {
   const nodeId = `shot:${shot.id}`;
   const model = getModel(slot);
   const text = previous ? `Extend @Video 1 by ${shot.seconds} seconds. ${prompt}` : prompt;
@@ -59,25 +60,28 @@ const render = async ({ shot, prompt, variant, previous, params, slot, client, j
   await journal.result(intentId, { taskId });
   const polled = await client.pollVideo({ taskId });
   await journal.write('render.polled', { nodeId, shotId: shot.id, attempt, variant, taskId, videoUrl: polled.videoUrl, videoCacheUrl: polled.videoCacheUrl || null, lastFrameUrl: polled.lastFrameUrl || null });
-  const url = polled.videoCacheUrl || polled.videoUrl;
-  const name = `shot-${shot.id}-attempt${attempt}-v${variant}.mov`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`E-TAKE-FETCH: the take at ${url} responded ${res.status}`);
+  return { taskId, variant, prompt, file: `shot-${shot.id}-attempt${attempt}-v${variant}.mov`, url: polled.videoCacheUrl || polled.videoUrl, providerUrl: polled.videoUrl };
+};
+
+const register = async ({ shot, take, journal, attempt }) => {
+  const nodeId = `shot:${shot.id}`;
+  const res = await fetch(take.url);
+  if (!res.ok) throw new Error(`E-TAKE-FETCH: the take at ${take.url} responded ${res.status}`);
   const bytes = Buffer.from(await res.arrayBuffer());
-  await journal.media(name, bytes);
+  await journal.media(take.file, bytes);
   const dataUrl = `data:video/quicktime;base64,${bytes.toString('base64')}`;
   let uploaded = null;
   for (let tryN = 1; tryN <= 3 && !uploaded?.assetId; tryN += 1) {
     if (tryN > 1) await sleep(5000);
-    uploaded = await post('/api/film/upload', { dataUrl, name });
-    await journal.write('render.registered', { nodeId, shotId: shot.id, attempt, variant, try: tryN, bytes: bytes.length, response: uploaded });
+    uploaded = await post('/api/film/upload', { dataUrl, name: take.file });
+    await journal.write('render.registered', { nodeId, shotId: shot.id, attempt, variant: take.variant, try: tryN, bytes: bytes.length, response: uploaded });
   }
-  const stableUrl = uploaded?.cacheUrl || uploaded?.url || url;
+  const stableUrl = uploaded?.cacheUrl || uploaded?.url || take.url;
   if (!uploaded?.assetId) {
-    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, variant, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} variant ${variant} in 3 tries (the dev-server log line "[film/upload] Assets API registration skipped:" holds the provider's reason); the next shot extends from the take's url instead of an asset id`, response: uploaded });
+    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, variant: take.variant, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} variant ${take.variant} in 3 tries (the dev-server log line "[film/upload] Assets API registration skipped:" holds the provider's reason); if this take is chosen, the next shot extends from its url instead of an asset id`, response: uploaded });
   }
-  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, variant, taskId, url, stableUrl, assetId: uploaded?.assetId || null });
-  return { taskId, variant, prompt, file: name, url: stableUrl, providerUrl: polled.videoUrl, assetId: uploaded?.assetId || null };
+  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, variant: take.variant, taskId: take.taskId, url: take.url, stableUrl, assetId: uploaded?.assetId || null });
+  return { url: stableUrl, assetId: uploaded?.assetId || null };
 };
 
 const variate = async ({ shot, previous, idea, candidates, client, journal, attempt }) => {
@@ -99,58 +103,69 @@ const variate = async ({ shot, previous, idea, candidates, client, journal, atte
   throw new Error(`E-VARIATE: no lawful variants for shot ${shot.id} in 3 asks`);
 };
 
-const PERSONA = 'You are Persona, a trained film director and screenwriter reviewing takes for a film. You judge a take by what a demanding audience feels: clear storytelling and a readable moment, believable performance, purposeful camera and light, continuity with the footage it extends, and freedom from artifacts, warping, frozen motion or gibberish. Return ONLY a JSON object, no prose, no fences.';
+const review = async ({ shot, take, idea, logline, persona, client, journal, attempt }) => {
+  const { content } = await client.reason({
+    prompt: fill(persona.review, { logline, story: idea, seconds: shot.seconds, shot: shot.prompt, prompt: take.prompt }),
+    systemPrompt: persona.system,
+    video: take.providerUrl,
+  });
+  const r = json(content, `Persona's review of variant ${take.variant}`);
+  const score = Number(r.score);
+  if (!Number.isFinite(score)) throw new Error(`E-PERSONA: variant ${take.variant} review has no numeric score`);
+  const notes = String(r.notes || '');
+  await journal.write('persona.review', { shotId: shot.id, attempt, variant: take.variant, file: take.file, score, notes, response: content });
+  return { variant: take.variant, score, notes };
+};
 
-const choose = async ({ shot, candidates, idea, logline, client, journal, attempt }) => {
-  const reviews = await Promise.all(candidates.map(async (c) => {
-    const { content } = await client.reason({
-      prompt: `THE FILM: ${logline}\nTHE STORY: ${idea}\n\nTHE SHOT (${shot.seconds}s): ${shot.prompt}\nTHE PROMPT THIS TAKE WAS RENDERED FROM: ${c.prompt}\n\nWatch the attached take and answer { "score": <0-10>, "notes": "<what works, what fails, in two or three sentences>" }.`,
-      systemPrompt: PERSONA,
-      video: c.providerUrl,
-    });
-    const r = json(content, `Persona's review of variant ${c.variant}`);
-    const score = Number(r.score);
-    if (!Number.isFinite(score)) throw new Error(`E-PERSONA: variant ${c.variant} review has no numeric score`);
-    await journal.write('persona.review', { shotId: shot.id, attempt, variant: c.variant, file: c.file, score, notes: String(r.notes || ''), response: content });
-    return { variant: c.variant, score, notes: String(r.notes || '') };
-  }));
+const choose = async ({ shot, candidates, logline, persona, client, journal, attempt }) => {
   let chosen = null; let reason = '';
   if (candidates.length === 1) { chosen = candidates[0]; reason = 'the only take that rendered'; } else {
     const { content } = await client.reason({
-      prompt: `THE FILM: ${logline}\nTHE SHOT (${shot.seconds}s): ${shot.prompt}\n\nYOUR REVIEWS OF THE TAKES:\n${reviews.map((r) => `variant ${r.variant} — score ${r.score} — ${r.notes}`).join('\n')}\n\nChoose the take the film should keep, the most interesting one that still serves the story. Answer { "variant": <integer>, "reason": "<one sentence>" }.`,
-      systemPrompt: PERSONA,
+      prompt: fill(persona.choice, { logline, seconds: shot.seconds, shot: shot.prompt, reviews: candidates.map((c) => `variant ${c.variant} — score ${c.review.score} — ${c.review.notes}`).join('\n') }),
+      systemPrompt: persona.system,
     });
     const d = json(content, "Persona's choice");
     chosen = candidates.find((c) => c.variant === Number(d.variant)) || null;
     if (!chosen) throw new Error(`E-PERSONA: chose variant ${JSON.stringify(d.variant)}, which did not render`);
     reason = String(d.reason || '');
   }
-  await journal.write('persona.choice', { shotId: shot.id, attempt, variant: chosen.variant, file: chosen.file, reason, reviews });
+  await journal.write('persona.choice', { shotId: shot.id, attempt, variant: chosen.variant, file: chosen.file, reason, reviews: candidates.map((c) => c.review) });
   return chosen;
 };
 
-const renderShot = async ({ shot, previous, idea, logline, candidates, params, slot, client, journal, attempt }) => {
-  const prompts = await variate({ shot, previous, idea, candidates, client, journal, attempt });
-  const settled = await Promise.allSettled(prompts.map((prompt, i) => render({ shot, prompt, variant: i + 1, previous, params, slot, client, journal, attempt })));
-  const rendered = [];
+const renderShot = async ({ shot, previous, prompts, idea, logline, persona, params, slot, client, journal, attempt }) => {
+  const settled = await Promise.allSettled(prompts.map(async (prompt, i) => {
+    const take = await render({ shot, prompt, variant: i + 1, previous, params, slot, client, journal, attempt });
+    const [registered, reviewed] = await Promise.all([
+      register({ shot, take, journal, attempt }),
+      review({ shot, take, idea, logline, persona, client, journal, attempt }),
+    ]);
+    return { ...take, ...registered, review: reviewed };
+  }));
+  const candidates = [];
   for (const [i, r] of settled.entries()) {
-    if (r.status === 'fulfilled') rendered.push(r.value);
+    if (r.status === 'fulfilled') candidates.push(r.value);
     else await journal.write('fault', { node: `shot:${shot.id}`, shotId: shot.id, attempt, variant: i + 1, reason: r.reason?.message || String(r.reason) });
   }
-  if (!rendered.length) throw new Error(`E-SHOT: none of ${prompts.length} variants rendered`);
-  return choose({ shot, candidates: rendered, idea, logline, client, journal, attempt });
+  if (!candidates.length) throw new Error(`E-SHOT: none of ${prompts.length} variants made it to Persona`);
+  return choose({ shot, candidates, logline, persona, client, journal, attempt });
 };
 
-export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000, candidates = 5 }) => {
+export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000, candidates = 5, persona }) => {
+  if (!persona) throw new Error('E-PERSONA: runChain needs the persona configuration');
   const params = { resolution: style.format.resolution, ratio: style.format.ratio, audio: style.audio === true };
   const p = await plan({ idea, style, seconds, dMin, dMax, client, journal });
+  const firstVariants = await Promise.all(p.shots.map((shot, i) => variate({ shot, previous: i > 0, idea, candidates, client, journal, attempt: 1 })));
   const takes = [];
   let previous = null;
-  for (const shot of p.shots) {
+  for (const [i, shot] of p.shots.entries()) {
     await journal.write('node', { id: `shot:${shot.id}`, status: 'running', extendsFrom: previous });
     let take = null;
     for (let attempt = 1; attempt <= attempts && !take; attempt += 1) {
-      try { take = await renderShot({ shot, previous, idea, logline: p.logline, candidates, params, slot, client, journal, attempt }); } catch (err) {
+      try {
+        const prompts = attempt === 1 ? firstVariants[i] : await variate({ shot, previous: i > 0, idea, candidates, client, journal, attempt });
+        take = await renderShot({ shot, previous, prompts, idea, logline: p.logline, persona, params, slot, client, journal, attempt });
+      } catch (err) {
         await journal.write('fault', { node: `shot:${shot.id}`, shotId: shot.id, attempt, reason: err.message });
         if (attempt < attempts) await sleep(backoffMs);
       }
@@ -164,8 +179,7 @@ export const runChain = async ({ idea, style, seconds, client, journal, runId, s
   await journal.write('node', { id: 'assemble', status: 'running' });
   const stitched = await post('/api/film/stitch', { shots: takes.map((t) => t.take.url), name: `slice-${runId}` });
   const sliceUrl = stitched.cacheUrl || stitched.url;
-  await journal.media('slice.mp4', sliceUrl);
-  const m = await post('/api/film/measure', { url: sliceUrl, hashes: false });
+  const [, m] = await Promise.all([journal.media('slice.mp4', sliceUrl), post('/api/film/measure', { url: sliceUrl, hashes: false })]);
   await journal.write('node', { id: 'assemble', status: 'done', url: sliceUrl });
   await journal.write('final', { totalMeasured: m.duration, targetSeconds: seconds, fps: m.fps });
   return { plan: p, slice: { url: sliceUrl, totalMeasured: m.duration, fps: m.fps }, shots: takes.map((t) => ({ shotId: t.shot.id, seconds: t.shot.seconds, url: t.take.url, assetId: t.take.assetId })) };
