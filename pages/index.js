@@ -1,329 +1,126 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Rail from '../components/Rail';
-import Thread from '../components/Thread';
-import SkillsScreen from '../components/SkillsScreen';
-import FilmsScreen from '../components/FilmsScreen';
-import RulesScreen from '../components/RulesScreen';
-import {
-  addThread,
-  appendMessage,
-  clearProject,
-  listProjects,
-  setCorrectionStatus,
-  loadProject,
-  makeProject,
-  pruneSequenceActivity,
-  renameThreadSubject,
-  saveProject,
-  setThreadDraft,
-  threadById,
-} from '../state/project';
-import { browserClient } from '../agents/client';
-import { applyDeployModels } from '../utils/film/suiteConfig';
-import { hydrateSkills } from '../utils/film/skills';
-import '../agents';
-import { advance, approveCall, cancelCall, resumeRun } from '../agents/session';
-import { tracedClient } from '../agents/trace';
-import { reconcileInterrupted, resumeActivity } from '../agents/resume';
-import { resumeSequences } from '../agents/director/execute';
+import { useEffect, useRef, useState } from 'react';
 
-const THEME_KEY = 'bravo:theme';
-const SAVE_DEBOUNCE_MS = 300;
+const GLYPH = { pending: '○', running: '⟳', done: '✓' };
 
-export default function Shell() {
-  const [project, setProject] = useState(null);
-  const [openThreadId, setOpenThreadId] = useState(null);
-  const [more, setMore] = useState(false);
-  const [screen, setScreen] = useState(null);
-  const [loadError, setLoadError] = useState(null);
-  const [saveError, setSaveError] = useState(null);
-  const [theme, setTheme] = useState('system');
-  const saveTimer = useRef(null);
-  const latest = useRef(null);
-  const running = useRef(new Set());
-  const epoch = useRef(0);
-  const [, bumpRuns] = useState(0);
+export default function Extend() {
+  const [idea, setIdea] = useState('');
+  const [seconds, setSeconds] = useState(120);
+  const [runId, setRunId] = useState(null);
+  const [state, setState] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const timer = useRef(null);
 
-  const apply = useCallback((mutator) => {
-    const next = mutator(latest.current);
-    if (!next || next === latest.current) return;
-    latest.current = next;
-    setProject(next);
-  }, []);
-
-  const epochApply = useCallback((born) => (mutator) => {
-    if (epoch.current !== born) return;
-    apply(mutator);
-  }, [apply]);
-
-  const adopt = useCallback((next) => {
-    epoch.current += 1;
-    latest.current = next;
-    setProject(next);
-    setOpenThreadId(next.threads[0]?.id || null);
-  }, []);
-
-  useEffect(() => {
-    let stored;
+  const start = async () => {
+    setError(null);
+    if (!idea.trim()) { setError('Write the story first.'); return; }
+    setBusy(true);
     try {
-      stored = loadProject();
-    } catch (err) {
-      setLoadError(err.message);
-      return;
+      const res = await fetch('/api/extend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea, seconds }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setRunId(data.runId);
+      setState(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
     }
-    const next = stored ? reconcileInterrupted(pruneSequenceActivity(stored)) : makeProject();
-    if (!stored) saveProject(next);
-    setProject(next);
-    setOpenThreadId(next.threads[0]?.id || null);
-
-    try {
-      const t = window.localStorage.getItem(THEME_KEY);
-      if (t === 'light' || t === 'dark' || t === 'system') setTheme(t);
-    } catch { }
-  }, []);
+  };
 
   useEffect(() => {
-    latest.current = project;
-    if (!project) return undefined;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try { saveProject(project); setSaveError(null); } catch (err) { setSaveError(err.message); }
-    }, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(saveTimer.current);
-  }, [project]);
-
-  useEffect(() => {
-    const flush = () => { if (latest.current) saveProject(latest.current); };
-    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
-    window.addEventListener('beforeunload', flush);
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      window.removeEventListener('beforeunload', flush);
-      document.removeEventListener('visibilitychange', onHide);
-    };
-  }, []);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'system') root.removeAttribute('data-theme');
-    else root.setAttribute('data-theme', theme);
-    try { window.localStorage.setItem(THEME_KEY, theme); } catch { }
-  }, [theme]);
-
-  useEffect(() => {
-    (async () => {
+    if (!runId) return undefined;
+    const poll = async () => {
       try {
-        const res = await fetch('/api/film/config');
-        const cfg = await res.json();
-        if (cfg?.models) applyDeployModels(cfg.models);
-      } catch { }
-      hydrateSkills().catch(() => {});
-
-      const applyHere = epochApply(epoch.current);
-      await resumeActivity({ get: () => latest.current, apply: applyHere });
-      await resumeSequences({ client: browserClient(), get: () => latest.current, apply: applyHere });
-    })().catch((err) => setSaveError(`Recovery after reload failed: ${err.message}`));
-  }, [project?.id, epochApply]);
-
-  useEffect(() => {
-    if (window.BRAVO_DESKTOP || window.navigator.userAgent.includes('Electron')) {
-      document.body.classList.add('desktop');
-    }
-  }, []);
-
-  const startRun = useCallback((threadId, run) => {
-    if (!threadId || running.current.has(threadId)) return;
-    running.current.add(threadId);
-    bumpRuns((n) => n + 1);
-    const applyHere = epochApply(epoch.current);
-    Promise.resolve()
-      .then(() => run({ client: tracedClient(threadId), threadId, get: () => latest.current, apply: applyHere }))
-      .catch((err) => epochApply(epoch.current)((prev) => appendMessage(prev, threadId, { role: 'agent', text: `That failed: ${err.message}` })))
-      .finally(() => { running.current.delete(threadId); bumpRuns((n) => n + 1); });
-  }, [epochApply]);
-
-  const send = useCallback((text) => {
-    const threadId = openThreadId;
-    if (!threadId) return;
-    apply((prev) => appendMessage(setThreadDraft(prev, threadId, ''), threadId, { role: 'user', text }));
-    startRun(threadId, (args) => advance(args));
-  }, [openThreadId, apply, startRun]);
-
-  const approve = useCallback((messageId) => {
-    const threadId = openThreadId;
-    startRun(threadId, (args) => approveCall({ ...args, messageId }));
-  }, [openThreadId, startRun]);
-
-  const resume = useCallback(() => {
-    const threadId = openThreadId;
-    startRun(threadId, (args) => resumeRun(args));
-  }, [openThreadId, startRun]);
-
-  const cancel = useCallback((messageId) => {
-    apply((prev) => cancelCall(prev, openThreadId, messageId));
-  }, [openThreadId, apply]);
-
-  const draft = useCallback((text) => {
-    apply((prev) => setThreadDraft(prev, openThreadId, text));
-  }, [openThreadId, apply]);
-
-  const upload = useCallback((file) => {
-    const threadId = openThreadId;
-    if (!threadId) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const res = await fetch('/api/film/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dataUrl: reader.result, name: file.name }),
-        });
+        const res = await fetch(`/api/extend?runId=${encodeURIComponent(runId)}`);
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `upload failed (HTTP ${res.status})`);
-        apply((prev) => appendMessage(prev, threadId, {
-          role: 'user',
-          text: '',
-          asset: { url: data.url, name: file.name, assetId: data.assetId || null },
-        }));
-      } catch (err) {
-        apply((prev) => appendMessage(prev, threadId, { role: 'agent', text: `That upload failed: ${err.message}` }));
-      }
+        if (res.ok) setState(data);
+      } catch { }
     };
-    reader.readAsDataURL(file);
-  }, [openThreadId, apply]);
+    poll();
+    timer.current = setInterval(poll, 5000);
+    return () => clearInterval(timer.current);
+  }, [runId]);
 
-  const openFilm = useCallback((id) => {
-    let loaded;
-    try { loaded = loadProject(id); } catch (err) { setLoadError(err.message); return; }
-    if (!loaded) return;
-    adopt(reconcileInterrupted(pruneSequenceActivity(loaded)));
-    setScreen(null);
-  }, []);
+  const finished = state && ['complete', 'failed', 'refused'].includes(state.status);
+  useEffect(() => { if (finished) clearInterval(timer.current); }, [finished]);
 
-  const newFilm = useCallback(() => {
-    const fresh = makeProject();
-    saveProject(fresh);
-    adopt(fresh);
-    setScreen(null);
-  }, [adopt]);
+  return (
+    <main className="page">
+      <h1>Extend</h1>
+      <p className="lede">One story in, a film out. The first shot renders from the plan; every next shot extends the previous take. No one is in the loop.</p>
 
-  const filmsChanged = useCallback(() => {
-    if (listProjects().some((f) => f.id === latest.current?.id)) return;
-    let remaining = null;
-    try { remaining = loadProject(); } catch (err) { setLoadError(err.message); return; }
-    const next = remaining || makeProject();
-    saveProject(next);
-    adopt(reconcileInterrupted(pruneSequenceActivity(next)));
-  }, [adopt]);
-
-  const newThread = useCallback(() => {
-    const { project: next, thread } = addThread(latest.current);
-    apply(() => next);
-    setOpenThreadId(thread.id);
-  }, [apply]);
-
-  const rename = useCallback((title) => {
-    apply((prev) => (prev ? renameThreadSubject(prev, openThreadId, title) : prev));
-  }, [apply, openThreadId]);
-
-  const reset = useCallback(() => {
-    const n = latest.current?.threads?.reduce((sum, t) => sum + t.messages.length, 0) || 0;
-    const warn = n
-      ? `Delete this project and its ${n} message${n === 1 ? '' : 's'}? This cannot be undone.`
-      : 'Delete this project and start over?';
-    if (!window.confirm(warn)) return;
-    clearProject();
-    const fresh = makeProject();
-    saveProject(fresh);
-    adopt(fresh);
-    setMore(false);
-  }, [adopt]);
-
-  if (!project) {
-    return (<div className="boot" aria-hidden={!loadError}>
-        {loadError && (
-          <div className="dead">
-            <h1>The saved film could not be loaded</h1>
-            <p>{loadError}</p>
-          </div>
-        )}
-        <style jsx>{`
-          .boot { height: 100%; background: var(--canvas); }
-          .dead { max-width: 520px; margin: 18vh auto 0; padding: 0 24px; }
-          h1 { font-size: 16px; }
-          p { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
-        `}</style>
+      <label className="field">
+        <span>The story</span>
+        <textarea rows={4} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Let's make a story about … One or two sentences of detail." disabled={!!runId && !finished} />
+      </label>
+      <div className="row">
+        <label className="field small">
+          <span>Seconds</span>
+          <input type="number" min={40} step={10} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} disabled={!!runId && !finished} />
+        </label>
+        <button type="button" className="go" onClick={start} disabled={busy || (!!runId && !finished)}>{busy ? 'starting…' : runId && !finished ? 'running' : 'Make the film'}</button>
       </div>
-    );
-  }
+      {error && <p className="warn">{error}</p>}
 
-  const open = threadById(project, openThreadId);
-
-  return (<div className="app">
-      {(saveError || loadError) && (
-        <div className="storagewarn" role="alert">{saveError || loadError}</div>
-      )}
-      <div className="chrome" aria-hidden="true" />
-
-      <Rail
-        project={project}
-        openThreadId={openThreadId}
-        onOpenThread={setOpenThreadId}
-        onNewThread={newThread}
-        screen={screen}
-        onScreen={setScreen}
-        more={more}
-        onToggleMore={() => setMore((v) => !v)}
-        onAgentsChanged={() => bumpRuns((n) => n + 1)}
-        onReset={reset}
-        theme={theme}
-        onTheme={setTheme}
-      />
-      {screen === 'skills' && <SkillsScreen onClose={() => setScreen(null)} />}
-      {screen === 'rules' && (
-        <RulesScreen
-          project={project}
-          onClose={() => setScreen(null)}
-          onCorrectionStatus={(seqId, itId, corId, status) => apply((prev) => setCorrectionStatus(prev, seqId, itId, corId, status))}
-        />
-      )}
-      {screen === 'films' && (<FilmsScreen
-          currentId={project.id}
-          onOpen={openFilm}
-          onNew={newFilm}
-          onClose={() => setScreen(null)}
-          onChanged={filmsChanged}
-        />
-      )}
-      {!screen && (<Thread
-          project={project}
-          thread={open}
-          onSend={send}
-          onRename={rename}
-          onDraft={draft}
-          onApprove={approve}
-          onResume={resume}
-          onCancel={cancel}
-          onUpload={upload}
-          onOpenThread={setOpenThreadId}
-          running={running.current.has(open?.id)}
-        />
+      {runId && (
+        <section className="run">
+          <div className="head">
+            <span className="id">{runId}</span>
+            <span className={`status ${state?.status || 'starting'}`}>{state?.status || 'starting'}{state?.steps ? ` · ${state.steps} steps` : ''}</span>
+          </div>
+          {state?.refused && <p className="warn">Refused at intake: {state.refused.code} — {state.refused.detail}</p>}
+          {state?.failed && <p className="warn">Failed at {state.failed.stage}: {state.failed.detail}</p>}
+          {state?.logline && <p className="logline">{state.logline}</p>}
+          <ol className="shots">
+            {(state?.shots || []).map((sh) => (
+              <li key={sh.id} className={sh.status}>
+                <span className="g" aria-hidden="true">{GLYPH[sh.status] || '○'}</span>
+                <div className="body">
+                  <div className="line"><b>{sh.id}</b> · {sh.seconds}s{sh.setup ? ` · ${sh.setup}` : ''}{sh.attempt ? ` · attempt ${sh.attempt}` : ''}{sh.shipped ? ` · ${sh.shipped}` : ''}{sh.extendsFrom ? ' · extends previous' : ''}</div>
+                  {(sh.prompt || sh.subject) && <div className="sub">{sh.prompt || `${sh.subject} · ${sh.force}`}</div>}
+                  {sh.qc.map((q) => <div key={q.attempt} className={`qc ${q.pass ? 'pass' : 'fail'}`}>QC {q.attempt}: {q.pass ? 'pass' : 'fail'}{q.score != null ? ` (${q.score})` : ''}{q.findings.length ? ` — ${q.findings.join('; ')}` : ''}</div>)}
+                  {sh.decisions.map((d, i) => <div key={i} className="dec">judge: {d.decision}{d.reason ? ` — ${d.reason}` : ''}</div>)}
+                  {sh.faults.map((f, i) => <div key={i} className="fault">fault ({f.kind}): {f.reason}</div>)}
+                  {(sh.takes || []).map((f) => <video key={f} className="take" controls preload="metadata" src={`/api/extend?runId=${encodeURIComponent(runId)}&file=${encodeURIComponent(f)}`} />)}
+                </div>
+              </li>
+            ))}
+          </ol>
+          {state?.final && <p className="final">Assembled: {state.final.totalMeasured}s for {state.final.targetSeconds}s · {state.final.pass ? 'within tolerance' : `off by ${state.final.delta}s`}</p>}
+          {state?.slice && <video className="film" controls src={`/api/extend?runId=${encodeURIComponent(runId)}&file=slice.mp4`} />}
+          {state?.report && <p className="rep">Report: <code>runs/{runId}/report.md</code> · journal: <code>runs/{runId}/journal.ndjson</code></p>}
+        </section>
       )}
 
       <style jsx>{`
-        .app { display: flex; height: 100%; min-height: 0; }
-        .chrome {
-          position: fixed; inset: 0 0 auto 0; height: var(--chrome-h);
-          z-index: 40;
-          pointer-events: none;
-        }
-        .storagewarn {
-          position: fixed; inset: var(--chrome-h) 0 auto 0; z-index: 60;
-          padding: 9px 16px; text-align: center;
-          background: var(--accent); color: var(--accent-ink);
-          font-size: 13px; font-weight: 550;
-        }
+        .page { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 32px max(20px, calc(50% - 410px)) 80px; color: var(--ink); }
+        h1 { font-size: 22px; font-weight: 550; margin: 0 0 6px; }
+        .lede { color: var(--muted); margin: 0 0 20px; line-height: 1.5; }
+        .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+        .field.small { width: 120px; }
+        textarea, input { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+        .row { display: flex; align-items: flex-end; gap: 14px; }
+        .go { padding: 10px 18px; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); font-size: 14px; }
+        .go:disabled { opacity: .5; }
+        .warn { margin: 10px 0; padding: 8px 11px; border-radius: 8px; background: var(--accent-wash); color: var(--accent); font-size: 13px; }
+        .run { margin-top: 26px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+        .head { display: flex; justify-content: space-between; font-size: 12px; color: var(--faint); }
+        .status.complete { color: var(--state-settled); } .status.failed, .status.refused { color: var(--state-stale); } .status.rendering, .status.planning { color: var(--state-working); }
+        .logline { margin: 8px 0 14px; font-size: 15px; }
+        .shots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+        .shots li { display: flex; gap: 10px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line-soft); }
+        .shots li.running { background: var(--hover); }
+        .g { flex: none; width: 16px; color: var(--faint); } li.done .g { color: var(--state-settled); } li.running .g { color: var(--state-working); }
+        .body { flex: 1; min-width: 0; font-size: 13px; }
+        .sub, .qc, .dec, .fault { font-size: 12px; color: var(--muted); margin-top: 3px; }
+        .qc.fail, .fault { color: var(--state-stale); } .qc.pass { color: var(--state-settled); }
+        .final { margin-top: 14px; font-size: 13px; }
+        .film { width: 100%; margin-top: 10px; border-radius: 10px; background: #000; }
+        .take { width: 100%; max-width: 480px; display: block; margin-top: 8px; border-radius: 8px; background: #000; }
+        .rep { font-size: 12px; color: var(--faint); }
+        code { font-size: 11.5px; }
       `}</style>
-    </div>
+    </main>
   );
 }
