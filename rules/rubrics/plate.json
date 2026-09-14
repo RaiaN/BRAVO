@@ -1,0 +1,46 @@
+{
+ "version": 1,
+ "set": "plate",
+ "params": {
+  "provenance": {
+   "origin": "seed",
+   "note": "plate rubric seeded with Pipeline V2 stage 5: subject matches the brief, look matches the style"
+  }
+ },
+ "questions": [
+  {
+   "id": "plate.entity-depicted",
+   "ruleRef": "SCR-007",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "identity",
+   "evidence": "frame",
+   "evidenceRequired": true,
+   "anchors": ["entity", "role"],
+   "text": "Does the image show exactly one {role} that could serve as {entity} in this film?"
+  },
+  {
+   "id": "plate.look-held",
+   "ruleRef": "SCR-008",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "look",
+   "evidence": "frame",
+   "evidenceRequired": true,
+   "anchors": ["look"],
+   "text": "Does the image carry the look described as: {look}?"
+  },
+  {
+   "id": "plate.integrity",
+   "ruleRef": "CIN-009",
+   "form": "choice",
+   "options": ["clean", "distorted anatomy", "garbled writing", "duplicated subject"],
+   "passes": ["clean"],
+   "scope": "artifact",
+   "evidence": "frame",
+   "evidenceRequired": true,
+   "anchors": [],
+   "text": "Which of these describes the picture's integrity?"
+  }
+ ]
+}

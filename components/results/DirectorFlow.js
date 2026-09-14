@@ -40,7 +40,7 @@ const detail = (n) => {
   if (n.status === 'halted') return n.reason || 'halted';
   if (!n.value) return null;
   if (n.id.startsWith('measure:')) return `${n.value.measured}s for ${n.value.requested}s · ${n.value.fps}fps${n.value.silent ? ' · silent' : ''}`;
-  if (n.id.startsWith('chain:')) return `distance ${n.value.distance}`;
+  if (n.id.startsWith('chain:')) return `${n.value.joinType || 'join'} · distance ${n.value.distance}`;
   if (n.id === 'final') return `${n.value.totalMeasured}s · Δ ${n.value.deltaFromN}s`;
   if (n.id.startsWith('plate:')) return 'rendered';
   if (n.id.startsWith('shoot:') && n.value.takeId) return `take landed${n.value.silent ? ' · silent' : ''}`;

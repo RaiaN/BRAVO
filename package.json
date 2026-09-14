@@ -16,7 +16,8 @@
     "start:desktop": "NODE_USE_SYSTEM_CA=1 NODE_ENV=production electron .",
     "build:desktop": "npm run build && electron-builder -m",
     "test": "node --import ./tests/lib/hook.mjs --test \"tests/**/*.test.js\"",
-    "test:agents": "node --import ./tests/lib/hook.mjs tests/lib/run.js"
+    "test:agents": "node --import ./tests/lib/hook.mjs tests/lib/run.js",
+    "bravo": "node --env-file-if-exists=.env.local --import ./tests/lib/hook.mjs cli/bravo.js"
   },
   "dependencies": {
     "@volcengine/tos-sdk": "^2.9.1",

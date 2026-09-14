@@ -214,6 +214,13 @@ const runDirectorCase = async (client, c) => {
       if (seq.status === 'executing' || seq.status === 'assembled') fails.push('the executor ran WITHOUT approval');
     }
   }
+  if (c.expect.joinsTyped && seq.plan) {
+    const untyped = seq.plan.shots.slice(1).filter((sh) => !['cut', 'continuous'].includes(sh.join));
+    if (untyped.length) fails.push(`untyped joins on shots: ${untyped.map((sh) => sh.id).join(', ')}`);
+  }
+  if (c.expect.hasCut && seq.plan) {
+    if (!seq.plan.shots.slice(1).some((sh) => sh.join === 'cut')) fails.push('a whole plan of continuous joins is one drifting take — no cut anywhere');
+  }
   if (c.expect.beatsCovered && seq.plan) {
     const beatIds = new Set(seq.beats.map((b) => b.id));
     const covered = new Set(seq.plan.shots.map((sh) => sh.beatId));

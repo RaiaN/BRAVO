@@ -180,6 +180,8 @@ const hydrate = (raw, key) => {
   };
 };
 
+export { hydrate as hydrateProject };
+
 const KEY_INDEX = 'bravo:projects';
 const KEY_OPEN = 'bravo:open';
 const keyFor = (id) => `bravo:project:${id}`;

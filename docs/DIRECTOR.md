@@ -220,7 +220,7 @@ D1–D2 spend nothing. D3 is the first real money (one approved sequence).
 2. **Audio in v1**: chaining + trim work with audio, but trimmed audio cuts hard. Proposal:
    v1 renders silent, audio is a later phase. Say if audio must be in from the start.
 3. **One approval card per sequence** (whole manifest, declared retry pool) — confirm.
-4. **Slice size**: the window is CIN-005's law — shots between kMin and kMax (now 2–8, raised by the creator's signature for the 60-second pilot), each 5–30s on the seedance25 slot, summing exactly to N. The first calibration runs used N ∈ [10, 30], 2–4 shots, so an
+4. **Slice size**: the window is CIN-005's law — shots between kMin and kMax (now 20–30 by the creator's decree — every film is a real cutting rhythm), each 5–30s on the seedance25 slot, summing exactly to N; the lawful film runs 100s to 900s. Timeline tolerance scales with shot count: max(0.5s, 0.06s × k), the per-take allowance calibrated from measured model jitter. The first calibration runs used N ∈ [10, 30], 2–4 shots, so an
    iteration costs minutes, not an afternoon.
 
 ## Grounded in precedent
@@ -239,7 +239,7 @@ Every thread writes its complete pipeline run to disk as it happens: `runs/<thre
 - `node` — every executor node transition with its measurements, retries, and halt reasons
 - `iteration` — the closing record of each run
 
-Alongside the steps, `runs/<threadId>/media/` holds the actual artifacts as files: `plate-<entity>.png` for every plate, `shoot-<shot>-attempt<n>.mp4` for every take (retakes keep their own numbers, so a burned retry is inspectable), the recorded last frame of each take, and `slice.mp4` for the assembled cut. A run directory is the complete film record: what was asked, what was reasoned, what was rendered, and what it cost.
+Alongside the steps, `runs/<threadId>/media/` holds the actual artifacts as files: `plate-<entity>-attempt<n>.png` for every plate render and `plate-<entity>.png` for the plate that was kept, `shoot-<shot>-attempt<n>.mp4` for every take (retakes keep their own numbers, so a burned retry is inspectable), the recorded last frame of each take, and `slice-a<admission>.mp4` for the assembled cut, numbered by the assemble node's admission. A run directory is the complete film record: what was asked, what was reasoned, what was rendered, and what it cost.
 
 The ledger is best-effort by design: a dropped step warns in the console but never blocks the pipeline. `runs/` is gitignored — it is evidence, not source.
 

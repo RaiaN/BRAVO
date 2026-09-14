@@ -44,6 +44,12 @@ const seedCases = [
     expect: { tools: ['brief', 'screenplay', 'breakdown', 'sequence'], sequenceCardPending: true },
     why: 'the manifest is the approval surface: every prompt on one card, nothing sent until the person clicks',
   },
+  {
+    name: 'antagonism · every shot names its subject, the force in frame and its change',
+    input: 'A 100 second slice: a night nurse must reach a locked ward before the alarm resets, while a floor warden keeps finding reasons to slow her down. Both new faces, one location, THE CORRIDOR. The warden is the opposition and is on screen for most of it. Plan it.',
+    expect: { tools: ['brief', 'screenplay', 'breakdown'], planLands: true, subjectForceChange: true },
+    why: 'SCR-013 is the plan gate for the constitution\'s third principle: a plan lands only when every shot names a cast subject, the force acting in it and its change, the share of shots without a force stays under the policy ceiling, and every continuous join keeps its subject and location',
+  },
 ];
 
 export const cases = [...seedCases, ...loadLearnedCases()];

@@ -1,124 +1,179 @@
 {
-  "version": 1,
-  "rules": [
-    {
-      "id": "SCR-001",
-      "title": "The screenplay parses",
-      "statement": "The screenplay is scenes: each has a slugline (INT or EXT, a location, a time of day) and at least one action line.",
-      "class": "plan",
-      "appliesTo": "screenplay",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-002",
-      "title": "Dramatis elements are declared",
-      "statement": "The brief's logline decomposes into a declared protagonist, a want, and an opposition; the screenplay names all three.",
-      "class": "plan",
-      "appliesTo": "screenplay",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-003",
-      "title": "Antagonism is present on screen",
-      "statement": "At least one scene stages the opposition directly: the declared opposing force acts against the protagonist's want inside a scene, not only in description.",
-      "class": "plan",
-      "appliesTo": "screenplay",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-004",
-      "title": "Every scene turns",
-      "statement": "Each scene declares a value change: it opens in one state and closes in another, and the two differ.",
-      "class": "plan",
-      "appliesTo": "screenplay",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-005",
-      "title": "Beats cover the story and shots cover the beats",
-      "statement": "Every beat maps to at least one shot and every shot serves exactly one beat; no orphan beats, no decorative shots.",
-      "class": "plan",
-      "appliesTo": "shotplan",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-006",
-      "title": "Dialogue survives verbatim",
-      "statement": "Every dialogue line in the screenplay appears verbatim, in the brace grammar, in exactly one shot prompt.",
-      "class": "plan",
-      "appliesTo": "shotplan",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-007",
-      "title": "Entities close",
-      "statement": "Every character and location named in the screenplay resolves to a bible entry id, or is declared new with a plate line item in the manifest; nothing dangles.",
-      "class": "plan",
-      "appliesTo": "shotplan",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-008",
-      "title": "The brief is complete",
-      "statement": "A brief carries a non-empty logline, an integer target duration, cast and location lists with resolutions, and fixed wire format; a missing field is a question to the person, never an invention.",
-      "class": "plan",
-      "appliesTo": "brief",
-      "blocking": true,
-      "failureKind": "deterministic",
-      "params": { "fps": 24 },
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-009",
-      "title": "Characters are worth watching",
-      "statement": "A character on screen wants something in this scene and does something about it; presence without pursuit is decoration.",
-      "class": "judgment",
-      "appliesTo": "screenplay",
-      "blocking": false,
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-010",
-      "title": "Dialogue carries subtext",
-      "statement": "People say things to get things; a line that only announces information the picture already shows is cut or turned.",
-      "class": "judgment",
-      "appliesTo": "screenplay",
-      "blocking": false,
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    },
-    {
-      "id": "SCR-011",
-      "title": "The slice tells one story",
-      "statement": "Beginning, escalation, and a landing: the last beat answers the first; a slice that merely stops has not told anything.",
-      "class": "judgment",
-      "appliesTo": "screenplay",
-      "blocking": false,
-      "provenance": { "origin": "seed" },
-      "status": "active"
-    }
-  ]
+ "version": 1,
+ "rules": [
+  {
+   "id": "SCR-001",
+   "title": "The screenplay parses",
+   "statement": "The screenplay is scenes: each has a slugline (INT or EXT, a location, a time of day) and at least one action line.",
+   "class": "plan",
+   "appliesTo": "screenplay",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-002",
+   "title": "Dramatis elements are declared",
+   "statement": "The brief's logline decomposes into a declared protagonist, a want, and an opposition; the screenplay names all three.",
+   "class": "plan",
+   "appliesTo": "screenplay",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-003",
+   "title": "Antagonism is present on screen",
+   "statement": "At least one scene stages the opposition directly: the declared opposing force acts against the protagonist's want inside a scene, not only in description.",
+   "class": "plan",
+   "appliesTo": "screenplay",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-004",
+   "title": "Every scene turns",
+   "statement": "Each scene declares a value change: it opens in one state and closes in another, and the two differ.",
+   "class": "plan",
+   "appliesTo": "screenplay",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-005",
+   "title": "Beats cover the story and shots cover the beats",
+   "statement": "Every beat maps to at least one shot and every shot serves exactly one beat; no orphan beats, no decorative shots.",
+   "class": "plan",
+   "appliesTo": "shotplan",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-006",
+   "title": "Dialogue survives verbatim",
+   "statement": "Every dialogue line in the screenplay appears verbatim, in the brace grammar, in exactly one shot prompt.",
+   "class": "plan",
+   "appliesTo": "shotplan",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-007",
+   "title": "Entities close",
+   "statement": "Every character and location named in the screenplay resolves to a bible entry id, or is declared new with a plate line item in the manifest; nothing dangles.",
+   "class": "plan",
+   "appliesTo": "shotplan",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-008",
+   "title": "The brief is complete",
+   "statement": "A brief carries a non-empty logline, an integer target duration, cast and location lists with resolutions, and fixed wire format; a missing field is a question to the person, never an invention.",
+   "class": "plan",
+   "appliesTo": "brief",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "params": {
+    "fps": 24
+   },
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-009",
+   "title": "Characters are worth watching",
+   "statement": "A character on screen wants something in this scene and does something about it; presence without pursuit is decoration.",
+   "class": "judgment",
+   "appliesTo": "screenplay",
+   "blocking": false,
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-010",
+   "title": "Dialogue carries subtext",
+   "statement": "People say things to get things; a line that only announces information the picture already shows is cut or turned.",
+   "class": "judgment",
+   "appliesTo": "screenplay",
+   "blocking": false,
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-011",
+   "title": "The slice tells one story",
+   "statement": "Beginning, escalation, and a landing: the last beat answers the first; a slice that merely stops has not told anything.",
+   "class": "judgment",
+   "appliesTo": "screenplay",
+   "blocking": false,
+   "provenance": {
+    "origin": "seed"
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-012",
+   "title": "Every shot advances the story",
+   "statement": "A shot's moment names what changes \u2014 a state at its start and a different state at its end. A shot that leaves the story exactly where it found it is decoration, not cinema.",
+   "class": "judgment",
+   "appliesTo": "shotplan",
+   "blocking": false,
+   "provenance": {
+    "origin": "note",
+    "iteration": "seq_mthko2mm78vyaazj/iteration-1",
+    "note": "creator, 2026-08-31: \"No storytelling in the shot\""
+   },
+   "status": "active"
+  },
+  {
+   "id": "SCR-013",
+   "title": "Every shot names its subject, its force and its change",
+   "statement": "Every shot names a subject from the cast, the force of antagonism acting in it and how it is visible (the literal none where the opposition is absent from the frame), and the change from its first frame to its last; the share of shots without a force stays within the policy's ceiling; a continuous join keeps the subject and the location of the shot before it — a change of either is a cut, declared as one.",
+   "class": "plan",
+   "appliesTo": "shotplan",
+   "blocking": true,
+   "failureKind": "deterministic",
+   "params": {
+    "noForce": "none"
+   },
+   "provenance": {
+    "origin": "seed",
+    "note": "creator decree 2026-09-03, the Pipeline V2 constitution (docs/PIPELINE.md, principle 3 and the keyframe amendment): shots are planned around subjects and the forces of antagonism; the share ceiling lives in the policy file as antagonism.maxShareWithoutForce; a continuous shot whose subject or location differs from its predecessor is refused at plan time, never silently re-keyed"
+   },
+   "status": "active"
+  }
+ ]
 }

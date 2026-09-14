@@ -124,6 +124,9 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
         <button type="button" className={`link${screen === 'rules' ? ' on' : ''}`} onClick={() => onScreen(screen === 'rules' ? null : 'rules')}>
           <span className="icon" aria-hidden="true">§</span><span>Rules</span>
         </button>
+        <a className="link" href="/extend">
+          <span className="icon" aria-hidden="true">▶</span><span>Extend</span>
+        </a>
         <button type="button" className="more" onClick={onToggleMore} aria-expanded={more}>
           <span className={`caret${more ? ' down' : ''}`} aria-hidden="true">▾</span>
           <span>More</span>
@@ -308,6 +311,7 @@ export default function Rail({ project, openThreadId, onOpenThread, onNewThread,
           padding: 6px 10px; border-radius: 7px;
           color: var(--muted); font-size: 13.5px; text-align: left;
         }
+        a.link { text-decoration: none; color: inherit; }
         .link:hover { background: var(--hover); color: var(--ink-soft); }
         .link.on { background: var(--active); color: var(--ink); }
         .link .icon { width: 16px; text-align: center; font-size: 13px; }

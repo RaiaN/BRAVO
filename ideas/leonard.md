@@ -1,0 +1,1 @@
+The psychopath Leonard has moved into a wealthy neighborhood, and has everyone fooled that he's a cool tech CEO. In this short scene, he steals Elaine's wallet from her purse, then lectures Elaine's husband Lawrence on home security.

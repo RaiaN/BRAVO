@@ -7,6 +7,18 @@ import { agentFor, explainMissing } from './registry.js';
 import { DEFAULT_GUARDS, makeRepeatGuard, makeThrashGuard, runGuards } from './guards.js';
 import { transcriptFor } from './transcript.js';
 import { requireSkillLine } from '../utils/film/skills.js';
+import { requireRulebook } from './director/rulebook.js';
+
+let policyCache = null;
+const requirePolicyValues = async () => {
+  if (policyCache) return policyCache;
+  const res = await fetch('/api/policy');
+  const data = await res.json();
+  if (!res.ok || !data?.values) throw new Error(data?.error || `the policy could not be loaded (HTTP ${res.status}) — nothing plans without it`);
+  policyCache = data.values;
+  return policyCache;
+};
+export const resetPolicyCache = () => { policyCache = null; };
 
 export const MAX_STEPS = 6;
 
@@ -94,11 +106,14 @@ export const runTurn = async ({ client, threadId, get, apply, modelId = null }) 
 
         const snapshot = p();
         // eslint-disable-next-line no-await-in-loop -- calls are ordered on purpose: each
+        const [rulebook, policy] = await Promise.all([requireRulebook(), requirePolicyValues()]);
+        const journal = { write: async (kind, data) => { trace(threadId, kind, data); return { step: null, at: new Date().toISOString() }; } };
+        // eslint-disable-next-line no-await-in-loop
         const result = await tool.run({
           input: call.input,
           project: snapshot,
           thread: threadById(snapshot, threadId),
-          ctx: { client, modelId, requireSkillLine },
+          ctx: { client, modelId, requireSkillLine, rulebook, policy, journal },
         });
         apply((prev) => mergeChanges(prev, snapshot, result.project));
         push({ role: 'tool', text: '', tool: { name: call.tool, input: call.input, output: result.output, approved: true, cost: result.cost || 0 } });

@@ -59,7 +59,7 @@
   {
    "id": "CIN-003",
    "title": "Joins are continuous",
-   "statement": "At every chained join, the perceptual-hash distance between the previous take's true last frame and the next take's first frame stays within the calibrated threshold.",
+   "statement": "At every join declared continuous, the perceptual-hash distance between the previous take's true last frame and the next take's first frame stays within the calibrated threshold.",
    "class": "measure",
    "appliesTo": "joins",
    "blocking": false,
@@ -97,12 +97,14 @@
    "blocking": true,
    "failureKind": "deterministic",
    "params": {
-    "kMin": 2,
-    "kMax": 8,
-    "dMin": 5
+    "kMin": 20,
+    "kMax": 30,
+    "dMin": 20
    },
    "provenance": {
-    "origin": "seed"
+    "origin": "note",
+    "iteration": "seq_mthko2mm78vyaazj/iteration-1",
+    "note": "creator decree 2026-09-04: every shot is 20 to 30 seconds; 20 to 30 shots per film"
    },
    "status": "active"
   },
@@ -134,32 +136,37 @@
   {
    "id": "CIN-007",
    "title": "Takes cover their planned seconds within budget",
-   "statement": "Each take measures at least its planned duration and overshoots by no more than its share of the timeline tolerance.",
+   "statement": "Each take measures at least its planned duration and overshoots by no more than the per-take allowance calibrated from measured model jitter.",
    "class": "measure",
    "appliesTo": "perShot",
    "blocking": true,
    "failureKind": "retryable",
    "params": {
-    "toleranceTotal": 0.5
+    "perShotOvershoot": 0.06
    },
    "provenance": {
-    "origin": "seed"
+    "origin": "note",
+    "note": "creator decree 2026-08-31: 20-30 shots per film; allowance 0.06s set from measured take jitter 0.042-0.056s across 12 real renders",
+    "iteration": "seq_mthko2mm78vyaazj/iteration-1"
    },
    "status": "active"
   },
   {
    "id": "CIN-008",
    "title": "The timeline lands on N",
-   "statement": "The assembled slice measures within the tolerance of the target seconds.",
+   "statement": "The assembled film measures within the scaled tolerance of the target seconds: the base half-second or the per-take allowance times the shot count, whichever is larger.",
    "class": "measure",
    "appliesTo": "timeline",
    "blocking": true,
    "failureKind": "retryable",
    "params": {
-    "tolerance": 0.5
+    "base": 0.5,
+    "perShot": 0.06
    },
    "provenance": {
-    "origin": "seed"
+    "origin": "note",
+    "note": "creator decree 2026-08-31: at 20-30 shots a fixed half-second is physically impossible against measured per-take jitter; tolerance scales with k",
+    "iteration": "seq_mthko2mm78vyaazj/iteration-1"
    },
    "status": "active"
   },
@@ -203,6 +210,24 @@
     "origin": "seed"
    },
    "status": "active"
+  },
+  {
+   "id": "CIN-012",
+   "title": "A cut changes the image",
+   "statement": "At every join declared a cut, the perceptual-hash distance between the adjoining frames must exceed the calibrated change threshold \u2014 a cut that changes nothing is a continuation wearing a cut's name.",
+   "class": "measure",
+   "appliesTo": "joins",
+   "blocking": false,
+   "failureKind": "retryable",
+   "params": {
+    "thetaChange": null
+   },
+   "provenance": {
+    "origin": "note",
+    "iteration": "seq_mthko2mm78vyaazj/iteration-1",
+    "note": "creator, 2026-08-31: \"No storytelling in the shot \u2014 really really bad job according to all metrics\" \u2014 all six joins measured 0-3/64 bits; the film had no cuts at all"
+   },
+   "status": "calibrating"
   }
  ]
 }

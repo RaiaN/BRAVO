@@ -1,0 +1,63 @@
+{
+ "version": 1,
+ "set": "join",
+ "params": {
+  "window": { "secondsBefore": 2, "secondsAfter": 2, "fps": 2, "maxWidth": 768 },
+  "provenance": {
+   "origin": "seed",
+   "note": "seed window for Pipeline V2 stage 10: two seconds either side of the boundary at two frames a second, the boundary index handed to the judge by the harness"
+  }
+ },
+ "questions": [
+  {
+   "id": "join.action-carries",
+   "ruleRef": "CIN-010",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "action",
+   "evidence": "sequence",
+   "evidenceRequired": true,
+   "anchors": [],
+   "joinTypes": ["cut", "continuous"],
+   "text": "Does the boundary land inside a movement rather than after the movement has settled?"
+  },
+  {
+   "id": "join.continuity-holds",
+   "ruleRef": "CIN-003",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "continuity",
+   "evidence": "sequence",
+   "evidenceRequired": true,
+   "anchors": [],
+   "joinTypes": ["continuous"],
+   "measure": "continuous",
+   "text": "Does the action after the boundary continue the action before it as one unbroken movement?"
+  },
+  {
+   "id": "join.direction-holds",
+   "ruleRef": "CIN-002",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "direction",
+   "evidence": "sequence",
+   "evidenceRequired": true,
+   "anchors": [],
+   "joinTypes": ["cut", "continuous"],
+   "text": "Does screen direction hold across the boundary, with figures facing and moving the same way on both sides?"
+  },
+  {
+   "id": "join.image-changes",
+   "ruleRef": "CIN-012",
+   "form": "binary",
+   "passes": ["yes"],
+   "scope": "continuity",
+   "evidence": "sequence",
+   "evidenceRequired": true,
+   "anchors": [],
+   "joinTypes": ["cut"],
+   "measure": "cut",
+   "text": "Does the image change across the boundary to a new setup, distance or piece of information?"
+  }
+ ]
+}

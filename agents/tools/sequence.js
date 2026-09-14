@@ -1,5 +1,6 @@
 import { sequenceById } from '../../state/project.js';
 import { fnv1a, manifestOf } from '../director/execute.js';
+import { loadedRulebook } from '../director/rulebook.js';
 
 export const sequence = {
   name: 'sequence',
@@ -7,12 +8,12 @@ export const sequence = {
   executor: true,
   describe: 'sequence — {}. Presents the WHOLE production manifest for approval: every shot prompt, every plate prompt, all durations, the render count and retry pool. One approval runs the entire slice.',
   validate: () => null,
-  prepare: ({ project, thread }) => {
+  prepare: ({ project, thread, rulebook = null }) => {
     const seq = thread?.kind === 'director' ? sequenceById(project, thread.subjectId) : null;
     if (!seq) return { error: 'this thread owns no sequence' };
     if (!seq.plan) return { error: 'no plan yet — brief, screenplay and breakdown come first' };
     if (seq.status === 'executing') return { error: 'this sequence is already running' };
-    const manifest = manifestOf(seq);
+    const manifest = manifestOf(seq, rulebook ?? loadedRulebook());
     const total = manifest.shots.reduce((a, b) => a + b.seconds, 0);
     if (total !== manifest.targetSeconds) return { error: `manifest sums to ${total}s, target is ${manifest.targetSeconds}s — the plan is inconsistent` };
     return {

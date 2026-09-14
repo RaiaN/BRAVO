@@ -101,6 +101,38 @@ export const CHECKS = {
     });
   },
 
+  'SCR-013': ({ brief, shots }, params, ctx) => {
+    if (!ctx || !ctx.policy) throw new Error('SCR-013: ctx.policy is missing — the share ceiling is policy.antagonism.maxShareWithoutForce, and a gate without its policy assumes nothing');
+    const maxShare = ctx.policy.antagonism?.maxShareWithoutForce;
+    if (typeof maxShare !== 'number') throw new Error(`SCR-013: policy.antagonism.maxShareWithoutForce must be a number — got ${JSON.stringify(maxShare ?? null)}`);
+    if (typeof params.noForce !== 'string' || !params.noForce.trim()) throw new Error('SCR-013: the rule carries no params.noForce — the literal that marks an absent force is law, not code');
+    const castNames = (brief?.cast || []).map((c) => canon(c.name));
+    const list = shots || [];
+    const out = [];
+    let withoutForce = 0;
+    list.forEach((s, i) => {
+      const subjectOk = castNames.includes(canon(s.subject));
+      out.push(v('SCR-013', `shot ${s.id}`, subjectOk, s.subject ?? null, 'a cast member by name', subjectOk ? null : `subject ${JSON.stringify(s.subject ?? null)} is not the name of anyone in the cast`));
+      const force = String(s.force ?? '').trim();
+      out.push(v('SCR-013', `shot ${s.id}`, !!force, force || null, `the antagonism in frame and how it is visible, or the literal ${JSON.stringify(params.noForce)}`, force ? null : 'no force named'));
+      if (canon(force) === canon(params.noForce)) withoutForce += 1;
+      const change = String(s.change ?? '').trim();
+      out.push(v('SCR-013', `shot ${s.id}`, !!change, change || null, 'first-frame state -> last-frame state', change ? null : 'no change named'));
+      if (i > 0 && s.join === 'continuous') {
+        const prev = list[i - 1];
+        const sameSubject = canon(prev.subject) === canon(s.subject);
+        const sameLocation = canon(prev.location) === canon(s.location);
+        const ok = sameSubject && sameLocation;
+        out.push(v('SCR-013', `join ${prev.id}->${s.id}`, ok, `${s.subject} @ ${s.location}`, `${prev.subject} @ ${prev.location} (continuous)`, ok ? null : `a continuous join changed its ${[!sameSubject && 'subject', !sameLocation && 'location'].filter(Boolean).join(' and ')} — that is a cut, and it is declared as one`));
+      }
+    });
+    if (list.length) {
+      const share = withoutForce / list.length;
+      out.push(v('SCR-013', 'shotplan', share <= maxShare, `${withoutForce}/${list.length} shots without a force (${share.toFixed(2)})`, `<= ${maxShare} (policy.antagonism.maxShareWithoutForce)`, share <= maxShare ? null : 'the opposition is absent from too much of the film'));
+    }
+    return out;
+  },
+
   'CIN-001': ({ shots }, params) => (shots || []).map((s) => {
     const ok = params.vocabulary.includes(s.setup);
     return v('CIN-001', `shot ${s.id}`, ok, s.setup || null, 'a setup from the camera library', ok ? null : 'unknown or missing setup');
@@ -147,24 +179,34 @@ export const CHECKS = {
     return out;
   },
 
+  'CIN-012': ({ joins }, params) => (joins || []).filter((j) => j.joinType === 'cut').map((j) => {
+    const theta = params.thetaChange;
+    const pass = theta == null ? true : (j.distance ?? 0) > theta;
+    return v('CIN-012', `cut ${j.from}->${j.to}`, pass, j.distance ?? null, theta == null ? 'recording (thetaChange uncalibrated)' : `> ${theta}`, pass ? null : 'a declared cut changed almost nothing on screen');
+  }),
+
   'CIN-004': ({ perShot }, params) => (perShot || []).map((m) => {
     const ok = m.fps === params.fps;
     return v('CIN-004', `take ${m.shotId}`, ok, m.fps, params.fps, ok ? null : 'wrong frame rate — a model property, not a retryable failure');
   }),
 
   'CIN-007': ({ perShot }, params) => (perShot || []).map((m) => {
-    const budget = params.toleranceTotal / (perShot.length || 1);
+    const budget = params.perShotOvershoot;
     const overshoot = m.measured - m.requested;
     const ok = m.measured >= m.requested && overshoot <= budget;
     return v('CIN-007', `take ${m.shotId}`, ok, `${m.measured}s for ${m.requested}s`, `>= plan, overshoot <= ${budget.toFixed(3)}s`, ok ? null : (m.measured < m.requested ? 'short take' : 'overshoot exceeds its share of the tolerance'));
   }),
 
   'CIN-008': ({ timeline, brief }, params) => {
+    const tolerance = Math.max(params.base, params.perShot * (brief.shotCount || 1));
     const delta = Math.abs(timeline.totalMeasured - brief.targetSeconds);
-    return [v('CIN-008', 'timeline', delta <= params.tolerance, `${timeline.totalMeasured}s`, `${brief.targetSeconds}s +/- ${params.tolerance}`, delta <= params.tolerance ? null : `off by ${delta.toFixed(3)}s`)];
+    return [v('CIN-008', 'timeline', delta <= tolerance, `${timeline.totalMeasured}s`, `${brief.targetSeconds}s +/- ${tolerance.toFixed(2)}`, delta <= tolerance ? null : `off by ${delta.toFixed(3)}s`)];
   },
 
   'CIN-003': ({ joins }, params) => (joins || []).map((j) => {
+    if (!['cut', 'continuous'].includes(j.joinType)) throw new Error(`CIN-003: join ${j.from}->${j.to} declares joinType ${JSON.stringify(j.joinType === undefined ? null : j.joinType)} — every join is measured as a cut or as continuous, never as a default`);
+    return j;
+  }).filter((j) => j.joinType === 'continuous').map((j) => {
     const recorded = v('CIN-003', `join ${j.from}->${j.to}`, params.theta === null ? true : j.distance <= params.theta, j.distance, params.theta === null ? 'recording (uncalibrated)' : `<= ${params.theta}`, null);
     return recorded;
   }),

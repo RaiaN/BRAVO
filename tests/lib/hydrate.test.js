@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadProject, makeProject, saveProject } from '../../state/project.js';
+import { DEFAULT_BUDGET, loadProject, makeProject, saveProject } from '../../state/project.js';
 import { reconcileInterrupted } from '../../agents/resume.js';
 
 const store = new Map();
@@ -35,7 +35,7 @@ test('an old record gains new fields without losing what it had', () => {
   assert.deepEqual(loaded.film.shots[0].stills, []);
   assert.deepEqual(loaded.activity, []);
   assert.equal(loaded.threads[0].draft, '');
-  assert.equal(loaded.threads[0].budget.takesCap, 4);
+  assert.equal(loaded.threads[0].budget.takesCap, DEFAULT_BUDGET().takesCap);
 });
 
 test('a record with no id is broken, not a new film', () => {

@@ -1,0 +1,15 @@
+{
+  "id": "default",
+  "look": { "style": "naturalistic live action, anamorphic, shallow focus", "grade": "cool shadows, warm practicals, restrained contrast" },
+  "constraints": ["no on-screen text", "no direct address to camera"],
+  "audio": false,
+  "format": { "resolution": "720p", "ratio": "16:9" },
+  "world": "",
+  "references": [],
+  "doctrine": [
+    "The opposition acts on screen in every scene; pressure is shown, never narrated.",
+    "A cut changes what the audience knows."
+  ],
+  "precedentTags": [],
+  "seed": null
+}

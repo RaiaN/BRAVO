@@ -1,11 +1,9 @@
 import {
-  addActivity, appendIteration, insertShot, newId, removeActivity, sequenceById,
-  setSequenceFields, setShotFields, setThreadStatus, shotById, threadById, touch,
+  appendIteration, newId, sequenceById, setSequenceFields, setThreadStatus, threadById,
 } from '../../state/project.js';
-import { animate, isAudioPolicyError } from '../../utils/film/core/operations.js';
 import { requireRulebook } from './rulebook.js';
-import { runMeasureGates } from './gates.js';
-import { maxShotSeconds } from '../../utils/film/suiteConfig.js';
+import { completeNode, completionProblems, runNode } from './nodes.js';
+import { runSchedule, validateManifest } from './schedule.js';
 import { trace, traceMedia } from '../trace.js';
 
 export const fnv1a = (str) => {
@@ -17,14 +15,35 @@ export const fnv1a = (str) => {
   return (h >>> 0).toString(16).padStart(8, '0');
 };
 
-export const manifestOf = (seq) => ({
+const FORMAT_KEYS = ['fps', 'resolution', 'ratio', 'audio'];
+
+const formatOf = (seq) => {
+  const format = seq.brief?.format;
+  if (!format || typeof format !== 'object') throw new Error(`sequence ${seq.id} has no brief.format — the render parameters come from the brief the gates approved, never from code`);
+  for (const key of FORMAT_KEYS) {
+    if (!(key in format) || format[key] === undefined || format[key] === null) throw new Error(`sequence ${seq.id} declares no brief.format.${key} — the render parameters come from the brief the gates approved, never from code`);
+  }
+  if (typeof format.audio !== 'boolean') throw new Error(`sequence ${seq.id} declares brief.format.audio as ${JSON.stringify(format.audio)} — audio is on or off, never inferred`);
+  return { fps: format.fps, resolution: format.resolution, ratio: format.ratio, audio: format.audio };
+};
+
+export const toleranceOf = (rulebook, shotCount) => {
+  if (!rulebook || typeof rulebook.ruleById !== 'function') throw new Error('manifestOf needs the loaded rulebook — the timeline tolerance is CIN-008\'s law, never a number in code');
+  const rule = rulebook.ruleById('CIN-008');
+  if (!rule) throw new Error('the rulebook carries no CIN-008 — the timeline tolerance has no law to come from');
+  const { base, perShot } = rule.params || {};
+  if (typeof base !== 'number' || typeof perShot !== 'number') throw new Error(`CIN-008 carries no params.base and params.perShot (got ${JSON.stringify(rule.params || null)}) — the tolerance cannot be scaled`);
+  return Math.max(base, perShot * shotCount);
+};
+
+export const manifestOf = (seq, rulebook) => ({
   seqId: seq.id,
   targetSeconds: seq.brief.targetSeconds,
-  tolerance: 0.5,
+  tolerance: toleranceOf(rulebook, seq.plan.shots.length),
   slot: seq.plan.slot,
-  params: { fps: 24, resolution: '720p', ratio: 'adaptive', audio: seq.brief.format.audio !== false },
+  params: formatOf(seq),
   shots: seq.plan.shots.map((sh) => ({
-    id: sh.id, seconds: sh.seconds, setup: sh.setup, side: sh.side,
+    id: sh.id, seconds: sh.seconds, setup: sh.setup, side: sh.side, join: sh.join === undefined ? null : sh.join,
     location: sh.location, beatId: sh.beatId, prompt: sh.prompt,
   })),
   plates: seq.plan.plates.map((p) => ({ entity: p.entity, role: p.role, prompt: p.prompt, model: p.model })),
@@ -34,35 +53,75 @@ export const manifestOf = (seq) => ({
   seed: seq.brief.seed,
 });
 
-const hamming = (a, b) => {
-  if (!a || !b || a.length !== b.length) return null;
-  let d = 0;
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) d += 1;
-  return d;
+export const BROWSER_CONCURRENCY = Object.freeze({ stills: 1, chains: 1, judge: 1 });
+export const BROWSER_POLL = Object.freeze({ timeoutMs: 20000, maxMs: 1800000 });
+
+const PASS_KEYS = ['policy', 'journal', 'reserve', 'stages', 'style', 'rubrics', 'rulebook', 'runId'];
+const STAGE_NAMES = ['plateQC', 'generateCandidates', 'scoreCandidate', 'selectCandidate', 'takeQC'];
+
+const requirePass = (pass) => {
+  for (const key of PASS_KEYS) {
+    if (!(key in pass) || pass[key] === undefined || pass[key] === null) throw new Error(`the pass is missing "${key}" — a policy run declares its policy, journal, reserve, stages, style, rubrics, rulebook and runId`);
+  }
+  for (const name of STAGE_NAMES) {
+    if (typeof pass.stages[name] !== 'function') throw new Error(`the pass's stages have no "${name}"`);
+  }
+  if (!pass.policy.concurrency) throw new Error('the policy has no concurrency caps');
+  if (!pass.policy.attempts) throw new Error('the policy has no attempt budgets');
+  if (!pass.policy.poll) throw new Error('the policy has no poll settings');
+  if (!pass.policy.resume) throw new Error('the policy has no resume settings');
+  if (typeof pass.rulebook.ruleById !== 'function' || typeof pass.rulebook.rulesFor !== 'function') throw new Error('the pass carries no loaded rulebook — one rulebook per pass, threaded through, never fetched twice');
+  const unable = completionProblems(pass.policy);
+  if (unable.length) throw new Error(`E-POLICY-COMPLETION: ${unable.join('; ')}`);
+  return pass;
 };
 
-const measureUrl = async (url, hashes) => {
-  const res = await fetch('/api/film/measure', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, hashes }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `measure failed (HTTP ${res.status})`);
-  return data;
+export const traceJournal = (threadId) => {
+  let step = 0;
+  const write = (kind, data) => {
+    step += 1;
+    const at = new Date().toISOString();
+    trace(threadId, kind, data);
+    return { step, at };
+  };
+  return {
+    write,
+    intent: (kind, data) => {
+      const intentId = newId('int');
+      write('intent', { intentId, kind, ...data });
+      return intentId;
+    },
+    result: (intentId, data) => write('result', { intentId, ...data }),
+    finding: (row) => write('finding', row),
+    cost: (row) => write('cost', row),
+    media: (name, url) => { traceMedia(threadId, name, url); return name; },
+    entries: () => { throw new Error('the browser trace has no read-back — entries() lives on the pass journal'); },
+  };
 };
 
-const nodeIds = (manifest) => [
-  'shots',
-  ...manifest.plates.map((p) => `plate:${p.entity}`),
-  ...manifest.shots.flatMap((sh, i) => [`shoot:${sh.id}`, `measure:${sh.id}`, ...(i > 0 ? [`chain:${sh.id}`] : [])]),
-  'assemble',
-  'final',
-];
+const CARD_STAGES = Object.fromEntries(STAGE_NAMES.map((name) => [name, () => {
+  throw new Error(`${name} is a policy-pass stage — the approved-card flow has no plate QC, no candidates and no take QC`);
+}]));
+
+export const cardReserve = ({ manifest, journal, run }) => {
+  let count = 0;
+  return async ({ nodeId, kind, units, justification }) => {
+    if (!nodeId) throw new Error('E-RESERVE-NO-NODE: a reservation names the plan node that spends');
+    if (!['still', 'take'].includes(kind)) throw new Error(`E-RESERVE-KIND: the approved card covers stills and takes, not ${JSON.stringify(kind)}`);
+    const declared = manifest.renders.stills + manifest.renders.takes + manifest.retryPool;
+    const before = run().spentRenders;
+    const after = before + 1;
+    if (after > declared) throw new Error(`E-BUDGET-CARD: ${nodeId} asks for one more ${kind} (${units} unit${units === 1 ? '' : 's'}) with ${before} of ${declared} declared renders spent — the approved card is the ceiling`);
+    count += 1;
+    const record = { id: `res_${count}`, nodeId, kind, units, justification, ceiling: declared, before, after };
+    await journal.write('reservation', record);
+    return record;
+  };
+};
 
 const ACTIVE_RUNS = new Set();
 
-export const runSequence = async ({ client, threadId, messageId, get, apply, modelId = null }) => {
+export const runSequence = async ({ client, threadId, messageId, get, apply, modelId = null, pass = null }) => {
   const p = () => get();
   const seqIdOf = () => threadById(p(), threadId)?.subjectId;
   const seq = () => sequenceById(p(), seqIdOf());
@@ -72,14 +131,17 @@ export const runSequence = async ({ client, threadId, messageId, get, apply, mod
   if (ACTIVE_RUNS.has(start.id)) return;
   ACTIVE_RUNS.add(start.id);
   try {
-    await walkSequence({ client, threadId, messageId, get, apply, modelId, p, seqIdOf, seq, start });
+    await walkSequence({ client, threadId, messageId, get, apply, modelId, pass: pass ? requirePass(pass) : null, p, seq, start });
   } finally {
     ACTIVE_RUNS.delete(start.id);
   }
 };
 
-const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, p, seqIdOf, seq, start }) => {
-  const manifest = manifestOf(start);
+const walkSequence = async ({ client, threadId, messageId, apply, pass, p, seq, start }) => {
+  const flow = pass ? 'policy' : 'card';
+  const journal = pass ? pass.journal : traceJournal(threadId);
+  const rulebook = pass ? pass.rulebook : await requireRulebook();
+  const manifest = manifestOf(start, rulebook);
   const manifestHash = fnv1a(JSON.stringify(manifest));
 
   if (start.run && start.run.manifestHash !== manifestHash) {
@@ -95,22 +157,23 @@ const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, 
   apply((prev) => {
     const q = sequenceById(prev, start.id);
     return setSequenceFields(prev, start.id, q.run
-      ? { status: 'executing' }
+      ? { status: 'executing', run: { ...q.run, takes: q.run.takes || {} } }
       : {
         status: 'executing',
-        run: { manifestHash, messageId, threadId, startedAt: new Date().toISOString(), nodes: {}, spentRenders: 0, retryPoolLeft: manifest.retryPool, silentShots: [], runs: [], gateResults: [] },
+        run: { manifestHash, messageId, threadId, flow, startedAt: new Date().toISOString(), nodes: {}, spentRenders: 0, retryPoolLeft: manifest.retryPool, silentShots: [], runs: [], gateResults: [], takes: {} },
       });
   });
   apply((prev) => setThreadStatus(prev, threadId, 'working'));
 
-  const node = (id) => (seq().run?.nodes?.[id] || { status: 'pending', attempts: 0, value: null });
+  const run = () => seq().run;
+  const node = (id) => (run().nodes[id] || { status: 'pending', attempts: 0, value: null });
   const setNode = (id, patch, quiet = false) => {
-    if (!quiet) trace(threadId, 'node', { id, ...patch });
     apply((prev) => {
       const q = sequenceById(prev, start.id);
       const cur = q.run.nodes[id] || { status: 'pending', attempts: 0, value: null };
       return setSequenceFields(prev, start.id, { run: { ...q.run, nodes: { ...q.run.nodes, [id]: { ...cur, ...patch } } } });
     });
+    return quiet ? undefined : journal.write('node', { id, ...patch });
   };
   const patchRun = (patch) => apply((prev) => {
     const q = sequenceById(prev, start.id);
@@ -119,17 +182,8 @@ const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, 
   const recordRun = (id, attempt, ms, outcome) => patchRun((r) => ({ runs: [...r.runs, { node: id, attempt, ms, outcome }] }));
   const recordGates = (results) => patchRun((r) => ({ gateResults: [...r.gateResults, ...results.map((g) => ({ ...g }))] }));
 
-  const halt = (id, reason, ruleId = null) => {
-    setNode(id, { status: 'halted', reason });
-    patchRun({ halted: { node: id, reason, ruleId } });
-    apply((prev) => setSequenceFields(prev, start.id, { status: 'halted' }));
-    apply((prev) => setThreadStatus(prev, threadId, 'needs-you'));
-    say(`The run halted at ${id}: ${reason}`);
-    finishIteration('halted', { node: id, ruleId, reason });
-  };
-
-  const finishIteration = (status, haltInfo = null) => {
-    trace(threadId, 'iteration', { sequenceId: start.id, status, halt: haltInfo, spentRenders: seq().run.spentRenders, retryPoolLeft: seq().run.retryPoolLeft });
+  const finishIteration = async (status, haltInfo = null) => {
+    await journal.write('iteration', { sequenceId: start.id, status, halt: haltInfo, spentRenders: run().spentRenders, retryPoolLeft: run().retryPoolLeft });
     apply((prev) => {
       const q = sequenceById(prev, start.id);
       return appendIteration(prev, start.id, {
@@ -165,251 +219,80 @@ const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, 
     });
   };
 
-  const rulebook = await requireRulebook();
-  const k = manifest.shots.length;
-  const shotMap = () => node('shots').value || {};
+  const halt = async (id, reason, ruleId = null) => {
+    await setNode(id, { status: 'halted', reason });
+    patchRun({ halted: { node: id, reason, ruleId } });
+    apply((prev) => setSequenceFields(prev, start.id, { status: 'halted' }));
+    apply((prev) => setThreadStatus(prev, threadId, 'needs-you'));
+    say(`The run halted at ${id}: ${reason}`);
+    await finishIteration('halted', { node: id, ruleId, reason });
+  };
 
-  let walking = true;
-  while (walking) {
-    walking = false;
-  for (const id of nodeIds(manifest)) {
-    if (node(id).status === 'done') continue;
-    const began = Date.now();
-    setNode(id, { status: 'running', startedAt: new Date().toISOString(), attempts: node(id).attempts + 1 });
-
-    try {
-      if (id === 'shots') {
-        let mapping = {};
-        apply((prev) => {
-          let next = prev;
-          const ids = [];
-          for (const sh of manifest.shots) {
-            const made = insertShot(next, {
-              fields: {
-                title: `${start.brief.logline.slice(0, 24)} · ${sh.id}`,
-                prompt: sh.prompt,
-                model: manifest.slot,
-                duration: sh.seconds,
-                resolution: manifest.params.resolution,
-                ratio: manifest.params.ratio,
-                generateAudio: manifest.params.audio,
-                ownedBy: start.id,
-              },
-            });
-            next = made.project;
-            mapping[sh.id] = made.shot.id;
-            ids.push(made.shot.id);
-          }
-          return setSequenceFields(next, start.id, { shotIds: ids });
-        });
-        setNode(id, { status: 'done', ms: Date.now() - began, value: mapping });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id.startsWith('plate:')) {
-        const entity = id.slice(6);
-        const plate = manifest.plates.find((pl) => pl.entity === entity);
-        const { url, cacheUrl, assetId } = await client.generateImage({ prompt: plate.prompt, referenceImages: [], size: '2K', model: undefined });
-        const durable = cacheUrl || url;
-        apply((prev) => touch({
-          ...prev,
-          bible: [...prev.bible, {
-            id: newId('bib'), name: plate.entity, role: plate.role, plateUrl: durable, assetId: assetId || null,
-            notes: `plate for sequence ${start.id}`, prompt: plate.prompt, model: plate.model, stills: [], refs: [],
-          }],
-        }));
-        patchRun((r) => ({ spentRenders: r.spentRenders + 1 }));
-        traceMedia(threadId, `plate-${entity.replace(/[^a-z0-9]+/gi, '_')}.${(durable.match(/\.(png|jpe?g|webp)(?=[?#]|$)/i) || [, 'png'])[1].toLowerCase()}`, durable);
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { url: durable, assetId: assetId || null } });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id.startsWith('shoot:')) {
-        const shotPlanId = id.slice(6);
-        const idx = manifest.shots.findIndex((sh) => sh.id === shotPlanId);
-        const sh = manifest.shots[idx];
-        if (!sh) throw new Error(`shot "${shotPlanId}" is not in the manifest — plan shot ids must be the strings their nodes are named for (got: ${manifest.shots.map((x) => `${typeof x.id} ${JSON.stringify(x.id)}`).join(', ')})`);
-        const prevShot = idx > 0 ? manifest.shots[idx - 1] : null;
-        const firstFrameUrl = prevShot ? node(`shoot:${prevShot.id}`).value?.lastFrameUrl || null : null;
-        const plateRefs = firstFrameUrl ? [] : manifest.plates.map((pl) => node(`plate:${pl.entity}`).value).filter(Boolean);
-
-        let existing = node(id).value || {};
-        let taskId = existing.taskId || null;
-        let promptUsed = existing.promptUsed || sh.prompt;
-        let silent = existing.silent || false;
-
-        if (!taskId) {
-          const kick = async (audioOn) => animate({
-            motion: sh.prompt,
-            refUrls: plateRefs.map((r) => r.url),
-            refAssetIds: plateRefs.map((r) => r.assetId || null),
-            firstFrameUrl,
-            duration: sh.seconds,
-            resolution: manifest.params.resolution,
-            ratio: firstFrameUrl ? 'adaptive' : manifest.params.ratio,
-            generateAudio: audioOn,
-            seed: manifest.seed,
-            modelKey: manifest.slot,
-          }, { client });
-          try {
-            const started = await kick(manifest.params.audio);
-            taskId = started.taskId;
-            promptUsed = started.prompt;
-          } catch (err) {
-            if (!manifest.params.audio || !isAudioPolicyError(err)) throw err;
-            const started = await kick(false);
-            taskId = started.taskId;
-            promptUsed = started.prompt;
-            silent = true;
-            patchRun((r) => ({ silentShots: [...r.silentShots, sh.id] }));
-          }
-          setNode(id, { value: { taskId, promptUsed, silent } });
-        }
-
-        const activityId = newId('act');
-        apply((prev) => addActivity(prev, { id: activityId, threadId, messageId, taskId, tool: 'shoot', label: `sequence · ${sh.id}`, seqId: start.id, nodeId: id }));
-        let polled = null;
-        const pollStarted = Date.now();
-        try {
-          while (!polled) {
-            if (Date.now() - pollStarted > 1800000) throw new Error(`the render task outlived 30 minutes at the provider (task ${taskId})`);
-            setNode(id, { lastCheckAt: new Date().toISOString() }, true);
-            try {
-              polled = await client.pollVideo({ taskId, timeoutMs: 20000 });
-            } catch (err) {
-              if (!/timed out/i.test(err.message)) throw err;
-            }
-          }
-        } finally {
-          apply((prev) => removeActivity(prev, activityId));
-        }
-
-        const take = {
-          id: newId('take'),
-          url: polled.videoCacheUrl || polled.videoUrl,
-          sourceUrl: polled.videoUrl,
-          posterUrl: polled.lastFrameCacheUrl || polled.lastFrameUrl || null,
-          createdAt: new Date().toISOString(),
-          promptUsed,
-          model: manifest.slot,
-          seed: manifest.seed,
-          resolution: manifest.params.resolution,
-          ratio: manifest.params.ratio,
-          duration: sh.seconds,
-          silent,
-        };
-        const filmShotId = shotMap()[sh.id];
-        apply((prev) => {
-          const fs = shotById(prev, filmShotId);
-          return fs ? setShotFields(prev, filmShotId, { takes: [...fs.takes, take], chosenTakeId: take.id }) : prev;
-        });
-        patchRun((r) => ({ spentRenders: r.spentRenders + 1 }));
-        traceMedia(threadId, `shoot-${shotPlanId}-attempt${node(id).attempts}.mp4`, take.url);
-        if (take.posterUrl) traceMedia(threadId, `shoot-${shotPlanId}-attempt${node(id).attempts}-lastframe.jpg`, take.posterUrl);
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { taskId, promptUsed, silent, takeId: take.id, url: take.url, lastFrameUrl: take.posterUrl } });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id.startsWith('measure:')) {
-        const shotPlanId = id.slice(8);
-        const sh = manifest.shots.find((x) => x.id === shotPlanId);
-        const takeUrl = node(`shoot:${shotPlanId}`).value.url;
-        const m = await measureUrl(takeUrl, true);
-        const payload = {
-          brief: { targetSeconds: manifest.targetSeconds },
-          perShot: [{ shotId: shotPlanId, requested: sh.seconds, measured: m.duration, fps: m.fps, nbReadFrames: m.nbReadFrames }],
-          joins: [],
-          timeline: { totalMeasured: manifest.targetSeconds },
-        };
-        const gates = runMeasureGates(rulebook, payload, { maxSeconds: maxShotSeconds });
-        const relevant = gates.results.filter((g) => ['CIN-004', 'CIN-007'].includes(g.ruleId));
-        recordGates(relevant);
-        const blockers = relevant.filter((g) => g.blocking && !g.pass);
-        if (blockers.length) {
-          const b = blockers[0];
-          if (b.failureKind === 'deterministic') {
-            halt(id, `[${b.ruleId}] ${b.detail || b.value} — a model property, not retryable`, b.ruleId);
-            return;
-          }
-          const left = seq().run.retryPoolLeft;
-          if (left <= 0) {
-            halt(id, `[${b.ruleId}] ${b.detail || b.value} — retry pool exhausted`, b.ruleId);
-            return;
-          }
-          patchRun((r) => ({ retryPoolLeft: r.retryPoolLeft - 1 }));
-          setNode(`shoot:${shotPlanId}`, { status: 'pending', value: null });
-          setNode(id, { status: 'pending', value: null });
-          recordRun(id, node(id).attempts, Date.now() - began, `retry: ${b.detail || b.value}`);
-          say(`Take ${shotPlanId} failed ${b.ruleId} (${b.detail || b.value}) — re-rendering from the declared pool (${left - 1} left).`);
-          walking = true;
-          break;
-        }
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { shotId: shotPlanId, requested: sh.seconds, measured: m.duration, nbReadFrames: m.nbReadFrames, fps: m.fps, overshoot: Math.round((m.duration - sh.seconds) * 1000) / 1000, firstHash: m.firstHash, lastHash: m.lastHash, hasAudio: m.hasAudio, silent: node(`shoot:${shotPlanId}`).value.silent }});
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id.startsWith('chain:')) {
-        const shotPlanId = id.slice(6);
-        const idx = manifest.shots.findIndex((x) => x.id === shotPlanId);
-        const prevSh = manifest.shots[idx - 1];
-        const a = node(`measure:${prevSh.id}`).value.lastHash;
-        const b = node(`measure:${shotPlanId}`).value.firstHash;
-        const distance = hamming(a, b);
-        const gates = runMeasureGates(rulebook, {
-          brief: { targetSeconds: manifest.targetSeconds },
-          perShot: [],
-          joins: [{ from: prevSh.id, to: shotPlanId, distance }],
-          timeline: { totalMeasured: manifest.targetSeconds },
-        }, { maxSeconds: maxShotSeconds });
-        recordGates(gates.results.filter((g) => g.ruleId === 'CIN-003'));
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { from: prevSh.id, to: shotPlanId, distance } });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id === 'assemble') {
-        const urls = manifest.shots.map((sh) => node(`shoot:${sh.id}`).value.url);
-        const res = await fetch('/api/film/stitch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shots: urls, name: `slice-${start.id}` }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.details || data.error || `stitch failed (HTTP ${res.status})`);
-        traceMedia(threadId, 'slice.mp4', data.cacheUrl || data.url);
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { url: data.cacheUrl || data.url } });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-
-      if (id === 'final') {
-        const sliceUrl = node('assemble').value.url;
-        const m = await measureUrl(sliceUrl, false);
-        const gates = runMeasureGates(rulebook, {
-          brief: { targetSeconds: manifest.targetSeconds },
-          perShot: [],
-          joins: [],
-          timeline: { totalMeasured: m.duration },
-        }, { maxSeconds: maxShotSeconds });
-        recordGates(gates.results.filter((g) => g.ruleId === 'CIN-008'));
-        const blocker = gates.blockers.find((g) => g.ruleId === 'CIN-008');
-        if (blocker) {
-          halt(id, `[CIN-008] assembled ${m.duration}s for target ${manifest.targetSeconds}s — ${blocker.detail}`, 'CIN-008');
-          return;
-        }
-        setNode(id, { status: 'done', ms: Date.now() - began, value: { totalMeasured: m.duration, deltaFromN: Math.round((m.duration - manifest.targetSeconds) * 1000) / 1000, fps: m.fps } });
-        recordRun(id, node(id).attempts, Date.now() - began, 'done');
-        continue;
-      }
-    } catch (err) {
-      halt(id, err.message);
-      return;
-    }
+  try {
+    validateManifest(manifest);
+  } catch (err) {
+    await halt('manifest', err.message);
+    return;
   }
+
+  const ctx = {
+    flow,
+    policy: pass ? pass.policy : null,
+    concurrency: pass ? pass.policy.concurrency : BROWSER_CONCURRENCY,
+    poll: pass ? pass.policy.poll : BROWSER_POLL,
+    manifest,
+    plan: start.plan,
+    seqId: start.id,
+    brief: start.brief,
+    threadId,
+    messageId,
+    runId: pass ? pass.runId : threadId,
+    client,
+    rulebook,
+    style: pass ? pass.style : null,
+    rubrics: pass ? pass.rubrics : null,
+    stages: pass ? pass.stages : CARD_STAGES,
+    project: p,
+    apply,
+    run,
+    node,
+    setNode,
+    patchRun,
+    recordGates,
+    say,
+    journal,
+    reserve: pass ? pass.reserve : cardReserve({ manifest, journal, run }),
+  };
+
+  const runOne = async (id) => {
+    const began = Date.now();
+    const out = await runNode(ctx, id);
+    if (out.status === 'done') recordRun(id, node(id).attempts, Date.now() - began, 'done');
+    if (out.status === 'regenerate') recordRun(id, node(id).attempts, Date.now() - began, `retry: ${out.cause}`);
+    return out;
+  };
+
+  const completeOne = async (id, info) => {
+    const began = Date.now();
+    const out = await completeNode(ctx, id, info);
+    recordRun(id, node(id).attempts, Date.now() - began, `completed after ${info.faults} faults: ${info.error.message}`);
+    return out;
+  };
+
+  const result = await runSchedule({
+    manifest,
+    plan: start.plan,
+    flow,
+    policy: ctx.policy,
+    concurrency: ctx.concurrency,
+    nodes: { get: node, set: setNode },
+    run: runOne,
+    complete: completeOne,
+    journal,
+  });
+  if (result.status === 'halted') {
+    await halt(result.halted.node, result.halted.reason, result.halted.ruleId);
+    return;
   }
 
   apply((prev) => setSequenceFields(prev, start.id, { status: 'assembled' }));
@@ -428,7 +311,7 @@ const walkSequence = async ({ client, threadId, messageId, get, apply, modelId, 
         : t)),
     };
   });
-  finishIteration('assembled');
+  await finishIteration('assembled');
   apply((prev) => setThreadStatus(prev, threadId, 'needs-you'));
   say('The slice is assembled and measured. Your notes are the next input — they become the ground truth this sequence learns from.');
 };
