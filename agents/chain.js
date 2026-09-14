@@ -44,11 +44,12 @@ const render = async ({ shot, previous, params, slot, client, journal, attempt }
   const nodeId = `shot:${shot.id}`;
   const model = getModel(slot);
   const text = previous ? `Extend @Video 1 by ${shot.seconds} seconds. ${shot.prompt}` : shot.prompt;
+  const sourceRef = previous ? (previous.assetId ? `asset://${previous.assetId}` : previous.url) : null;
   const content = previous
-    ? [{ type: 'text', text }, { type: 'video_url', video_url: { url: `asset://${previous}` }, role: 'reference_video' }]
+    ? [{ type: 'text', text }, { type: 'video_url', video_url: { url: sourceRef }, role: 'reference_video' }]
     : [{ type: 'text', text }];
   const body = { model, content, resolution: params.resolution, ratio: previous ? 'adaptive' : params.ratio, duration: shot.seconds, generate_audio: params.audio, watermark: false, return_last_frame: true, output_format: 'mov' };
-  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, mode: previous ? 'extend' : 'generate', body });
+  const intentId = await journal.intent('render.take', { nodeId, shotId: shot.id, attempt, mode: previous ? 'extend' : 'generate', sourceRef, body });
   let started;
   try {
     started = await post('/api/seedance', body);
@@ -57,12 +58,21 @@ const render = async ({ shot, previous, params, slot, client, journal, attempt }
   if (!taskId) throw new Error('E-SEEDANCE: no task id returned');
   await journal.result(intentId, { taskId });
   const polled = await client.pollVideo({ taskId });
+  await journal.write('render.polled', { nodeId, shotId: shot.id, attempt, taskId, videoUrl: polled.videoUrl, videoCacheUrl: polled.videoCacheUrl || null, lastFrameUrl: polled.lastFrameUrl || null });
   const url = polled.videoCacheUrl || polled.videoUrl;
-  const preserved = await post('/api/film/preserve', { url, name: `shot-${shot.id}-attempt${attempt}.mov` });
-  if (!preserved.assetId) throw new Error(`E-TAKE-NO-ASSET: shot ${shot.id} could not be registered as an asset`);
-  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, assetId: preserved.assetId });
+  let preserved = null;
+  for (let tryN = 1; tryN <= 3 && !preserved?.assetId; tryN += 1) {
+    if (tryN > 1) await sleep(5000);
+    preserved = await post('/api/film/preserve', { url, name: `shot-${shot.id}-attempt${attempt}.mov` });
+    await journal.write('render.preserved', { nodeId, shotId: shot.id, attempt, try: tryN, request: { url }, response: preserved });
+  }
+  const stableUrl = preserved?.url || url;
+  if (!preserved?.assetId) {
+    await journal.write('fault', { node: nodeId, shotId: shot.id, attempt, kind: 'asset-registration', reason: `the Assets API registered no asset for shot ${shot.id} in 3 tries (the server log holds the provider's reason); the next shot extends from the take's presigned url instead of an asset id`, response: preserved });
+  }
+  await journal.write('render.done', { nodeId, shotId: shot.id, attempt, taskId, url, stableUrl, assetId: preserved?.assetId || null });
   await journal.media(`shot-${shot.id}-attempt${attempt}.mov`, url);
-  return { taskId, url, assetId: preserved.assetId };
+  return { taskId, url: stableUrl, assetId: preserved?.assetId || null };
 };
 
 export const runChain = async ({ idea, style, seconds, client, journal, runId, slot = 'seedance25', dMin = 20, dMax = 30, attempts = 3, backoffMs = 20000 }) => {
@@ -82,7 +92,7 @@ export const runChain = async ({ idea, style, seconds, client, journal, runId, s
     if (!take) { await journal.write('node', { id: `shot:${shot.id}`, status: 'done', shipped: 'absent' }); continue; }
     await journal.write('node', { id: `shot:${shot.id}`, status: 'done', shipped: 'rendered', takeId: take.taskId, assetId: take.assetId, url: take.url });
     takes.push({ shot, take });
-    previous = take.assetId;
+    previous = { assetId: take.assetId, url: take.url };
   }
   if (!takes.length) throw new Error('E-NOTHING: no shot rendered');
   await journal.write('node', { id: 'assemble', status: 'running' });
