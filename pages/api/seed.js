@@ -99,10 +99,12 @@ async function seedHandler(req, res) {
         body: JSON.stringify(body),
       });
 
+      let thinkingFallback = false;
       let response = await callResponses(payload);
       if (!response.ok && payload.thinking) {
         const firstErr = await response.text().catch(() => '');
         if (/thinking|reasoning/i.test(firstErr)) {
+          thinkingFallback = true;
           console.warn(`[seed] thinking param rejected (${response.status}) — retrying without it. Reason: ${firstErr.slice(0, 400)}`);
           response = await callResponses({ model: payload.model, stream: payload.stream, input: payload.input });
         } else {
@@ -139,7 +141,10 @@ async function seedHandler(req, res) {
         return res.status(502).json({ error: 'Reasoning model returned no assistant text', details: data });
       }
 
-      return res.status(200).json({ content, raw: data });
+      return res.status(200).json({
+        content,
+        metadata: { id: data.id, model: data.model || resolvedModelId, usage: data.usage, protocol: 'responses', thinkingRequested: !!payload.thinking, thinkingFallback },
+      });
     }
 
     const messages = [
@@ -187,7 +192,7 @@ async function seedHandler(req, res) {
       return res.status(500).json({ error: 'No response text returned', details: data });
     }
 
-    return res.status(200).json({ content });
+    return res.status(200).json({ content, metadata: { id: data.id, model: data.model || resolvedModelId, usage: data.usage, protocol: 'chat/completions' } });
   } catch (error) {
     const cause = [error.cause?.code, error.cause?.message].filter(Boolean).join(' ');
     return res.status(500).json({ error: 'Request failed', details: cause ? `${error.message} (${cause})` : error.message });

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openJournal } from './journal.js';
 import { runChain } from './chain.js';
-import { problemsIn } from './persona.js';
+import { readAgentSettings } from './settings-store.js';
 import { createBrowserClient } from '../utils/film/core/client.js';
 import { applyDeployModels } from '../utils/film/suiteConfig.js';
 
@@ -28,13 +28,11 @@ const main = async () => {
     if (!cfg?.models) throw new Error(`E-SERVER: ${server} returned no models`);
     applyDeployModels(cfg.models);
     const style = JSON.parse(fs.readFileSync(path.join(cwd, 'looks', 'default.json'), 'utf8'));
-    const persona = JSON.parse(fs.readFileSync(path.join(cwd, 'looks', 'persona.json'), 'utf8'));
-    const personaProblems = problemsIn(persona);
-    if (personaProblems.length) throw new Error(`E-PERSONA-CONFIG: looks/persona.json — ${personaProblems.join('; ')}`);
-    await journal.write('intake', { models: Object.fromEntries(Object.entries(cfg.models).map(([k, v]) => [k, !!v])), style: style.id, persona, mode: 'chain — no QC, no rules' });
-    const client = createBrowserClient(undefined);
-    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs, candidates: POLICY.candidates, persona });
-    const lines = [`# ${runId}`, '', `**${out.plan.logline}**`, '', `Target ${seconds}s · measured ${out.slice.totalMeasured}s at ${out.slice.fps} fps`, '', '| shot | seconds | attempts | shipped | score |', '|---|---|---|---|---|', ...out.shots.map((s) => `| ${s.shotId} | ${s.seconds} | — | rendered | — |`), '', `Film: media/slice.mp4 · journal: journal.ndjson`];
+    const settings = readAgentSettings(cwd);
+    await journal.write('intake', { models: cfg.models, style, configRevision: settings.revision, agents: settings.config, mode: 'Persona take selection → five parallel film QC agents → Persona receipt selection', reasoningEngine: 'Seed 2.0 Pro' });
+    const client = createBrowserClient(undefined, { onEvent: (kind, data) => journal.write(kind, data) });
+    const out = await runChain({ idea, style, seconds, client, journal, runId, slot: 'seedance25', dMin: POLICY.dMin, dMax: POLICY.dMax, attempts: POLICY.attempts, backoffMs: POLICY.backoffMs, candidates: POLICY.candidates, agentConfig: settings.config, configRevision: settings.revision });
+    const lines = [`# ${runId}`, '', `**${out.plan.logline}**`, '', `Target ${seconds}s · measured ${out.slice.totalMeasured}s at ${out.slice.fps} fps`, '', '| shot | seconds | receipts | Persona’s selected agent |', '|---|---|---|---|', ...out.shots.map((s) => `| ${s.shotId} | ${s.seconds} | ${s.filmQC.receipts.length} | ${s.filmQC.selectedReceipt.agentName} |`), '', 'Receipts describe proposed improvements; they have not been applied to the assembled takes.', ...out.shots.flatMap((s) => ['', `## ${s.shotId}: ${s.filmQC.selectedReceipt.receipt.title}`, '', s.filmQC.selection.reason, '', '```json', JSON.stringify(s.filmQC, null, 2), '```']), '', `Film: media/slice.mp4 · journal: journal.ndjson`];
     fs.writeFileSync(path.join(dir, 'report.md'), lines.join('\n') + '\n');
     await journal.write('complete', { runId, status: 'complete', slice: out.slice, shots: out.shots.length });
     await journal.close();

@@ -10,13 +10,12 @@
 #   ./dev.sh package         build the .dmg (slow: full next build + electron-builder)
 #   ./dev.sh <anything else> passed through to npm run
 #
-# Honours $PORT (default 3210 — 3000 is usually taken on this machine):
-#   PORT=3400 ./dev.sh desktop
+# BRAVO always uses port 3004.
 set -e
 
 export PATH="/Users/bytedance/.local/node/bin:$PATH"
 export NODE_USE_SYSTEM_CA=1
-export PORT="${PORT:-3210}"
+export PORT=3004
 cd "$(dirname "$0")"
 
 command -v node >/dev/null 2>&1 || {

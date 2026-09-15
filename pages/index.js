@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import AgentSidebar from '../components/AgentSidebar.js';
 
-const GLYPH = { pending: '○', running: '⟳', done: '✓' };
+const KEY = 'bravo.extend';
+const remember = (patch) => {
+  try { localStorage.setItem(KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(KEY) || '{}')), ...patch })); } catch { }
+};
+const recall = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+
+const GLYPH = { pending: '○', running: '⟳', done: '✓', failed: '!' };
 const StatusBar = ({ shot }) => {
   const done = shot.status === 'done';
   const running = shot.status === 'running';
@@ -8,7 +15,7 @@ const StatusBar = ({ shot }) => {
   return (
     <div className={`bar ${shot.status}${shot.shipped === 'absent' ? ' absent' : ''}`}>
       <span className="fill" />
-      <span className="lbl">{done ? (shot.shipped === 'absent' ? 'absent' : 'done') : 'rendering'}</span>
+      <span className="lbl">{done ? (shot.shipped === 'absent' ? 'absent' : 'done') : shot.phase === 'film-qc' ? (shot.filmQC?.status === 'selecting' ? 'Persona selecting' : 'film QC') : 'rendering'}</span>
       <style jsx>{`
         .bar { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
         .fill { flex: 1; height: 4px; border-radius: 2px; background: var(--state-settled); }
@@ -21,66 +28,53 @@ const StatusBar = ({ shot }) => {
   );
 };
 
-const PersonaPanel = () => {
-  const [persona, setPersona] = useState(null);
-  const [defaults, setDefaults] = useState(null);
-  const [placeholders, setPlaceholders] = useState({});
-  const [saved, setSaved] = useState(null);
-  const [note, setNote] = useState(null);
-  useEffect(() => {
-    fetch('/api/persona').then(async (r) => {
-      const d = await r.json();
-      setDefaults(d.defaults); setPlaceholders(d.placeholders || {});
-      if (r.ok) { setPersona(d.persona); setSaved(JSON.stringify(d.persona)); } else setNote(d.error);
-    }).catch((e) => setNote(e.message));
-  }, []);
-  const save = async () => {
-    setNote(null);
-    const r = await fetch('/api/persona', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(persona) });
-    const d = await r.json();
-    if (!r.ok) { setNote(d.error); return; }
-    setSaved(JSON.stringify(d.persona)); setNote('Saved. The next run judges with this.');
-  };
-  const dirty = persona && JSON.stringify(persona) !== saved;
-  const fields = [
-    ['system', 'Who Persona is', 'The system prompt behind every judgement.'],
-    ['review', 'Reviewing one take', 'Asked once per take, with the video attached. Must ask for JSON with a numeric "score" and "notes".'],
-    ['choice', 'Choosing the take', 'Asked once per shot with all reviews. Must ask for JSON with an integer "variant" and a "reason".'],
-  ];
+const FilmQC = ({ qc }) => {
+  if (!qc) return null;
   return (
-    <aside className="panel">
-      <h2>Persona</h2>
-      <p className="hint">How every take is judged. Saved to <code>looks/persona.json</code> and journaled with each run.</p>
-      {persona && fields.map(([key, label, help]) => (
-        <label key={key} className="pf">
-          <span className="pl">{label}</span>
-          <textarea rows={key === 'system' ? 6 : 8} value={persona[key]} onChange={(e) => setPersona({ ...persona, [key]: e.target.value })} spellCheck={false} />
-          <span className="ph">{help}{(placeholders[key] || []).length ? ` Placeholders: ${placeholders[key].map((x) => `{${x}}`).join(' ')}.` : ''}</span>
-        </label>
-      ))}
-      <div className="pbtns">
-        <button type="button" className="go" onClick={save} disabled={!dirty}>Save</button>
-        <button type="button" className="ghost" onClick={() => defaults && setPersona({ ...defaults })} disabled={!defaults}>Restore defaults</button>
+    <section className="film-qc" aria-label="Film quality review">
+      <b>Film QC · {qc.receipts.length}/5 receipts · {qc.status}</b>
+      <p className="hint">Five independent film specialists, powered by Seed 2.0 Pro. Receipts propose improvements to the selected take.</p>
+      <div className="agents">
+        {qc.agents.map((agent) => (
+          <span key={agent.id}>{agent.name}: {agent.stage === 'inspect' ? 'inspection' : 'receipt'} {agent.status}{agent.attempt > 1 ? ` (attempt ${agent.attempt})` : ''}</span>
+        ))}
       </div>
-      {note && <p className="pnote">{note}</p>}
+      {qc.failures.map((f) => <p className="failure" key={f.agentId}>{f.agentId}: {f.error}</p>)}
+      {qc.selection && <p className="selected"><b>Persona selected {qc.selection.selectedReceipt.agentName}.</b> {qc.selection.reason}</p>}
+      {qc.receipts.map((r) => (
+        <details key={r.receiptId} className={qc.selection?.receiptId === r.receiptId ? 'picked' : ''}>
+          <summary>{r.agentName} · {r.receipt.title}{qc.selection?.receiptId === r.receiptId ? ' · Persona’s pick' : ''}</summary>
+          <p>{r.receipt.summary}</p>
+          <p><b>Inspection · {r.inspection.score}/10:</b> {r.inspection.summary}</p>
+          {r.inspection.strengths.length > 0 && <p><b>Strengths:</b> {r.inspection.strengths.join(' · ')}</p>}
+          {r.inspection.findings.map((f) => <p key={f.id}><b>{f.id} · {f.severity}{f.timecode != null ? ` · ${f.timecode}s` : ''}:</b> {f.evidence} {f.impact}</p>)}
+          {r.receipt.preserve.length > 0 && <p><b>Preserve:</b> {r.receipt.preserve.join(' · ')}</p>}
+          {r.receipt.actions.map((a, i) => (
+            <div className="action" key={i}>
+              <p><b>{a.priority}. {a.department}:</b> {a.change}</p>
+              <p>{a.rationale}{a.findingIds.length ? ` (${a.findingIds.join(', ')})` : ''}</p>
+              <p><b>Risk:</b> {a.risk}</p>
+              <p><b>Verify:</b> {a.verify}</p>
+            </div>
+          ))}
+          <p><b>Revised shot prompt:</b> {r.receipt.revisedPrompt}</p>
+          {[...r.inspection.limitations, ...r.receipt.limitations].length > 0 && <p><b>Limitations:</b> {[...new Set([...r.inspection.limitations, ...r.receipt.limitations])].join(' · ')}</p>}
+        </details>
+      ))}
+      {qc.selection && <details><summary>Persona’s comparison of all five receipts</summary>{qc.selection.comparisons.map((c) => <p key={c.receiptId}><b>{qc.receipts.find((r) => r.receiptId === c.receiptId)?.agentName}:</b> {c.assessment}</p>)}</details>}
       <style jsx>{`
-        .panel { width: 360px; flex: none; position: sticky; top: 0; align-self: flex-start; max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 4px 0 40px; border-left: 1px solid var(--line-soft); padding-left: 24px; }
-        h2 { font-size: 15px; font-weight: 550; margin: 0 0 4px; }
-        .hint { font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.45; }
-        code { font-size: 11px; }
-        .pf { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-        .pl { font-size: 12px; font-weight: 550; color: var(--ink-soft); }
-        .ph { font-size: 11px; color: var(--faint); line-height: 1.4; }
-        textarea { font: inherit; font-size: 12px; line-height: 1.4; color: var(--ink); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; resize: vertical; }
-        .pbtns { display: flex; gap: 8px; align-items: center; }
-        .go { padding: 8px 14px; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); font-size: 13px; }
-        .go:disabled { opacity: .5; }
-        .ghost { padding: 8px 12px; border-radius: var(--radius); background: transparent; color: var(--muted); border: 1px solid var(--line); font-size: 13px; }
-        .ghost:disabled { opacity: .5; }
-        .pnote { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
-        @media (max-width: 1080px) { .panel { width: auto; position: static; max-height: none; border-left: 0; padding-left: 0; border-top: 1px solid var(--line-soft); padding-top: 18px; margin-top: 24px; } }
+        .film-qc { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; line-height: 1.5; }
+        .hint, .agents { font-size: 12px; color: var(--muted); }
+        .agents { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+        p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .selected { color: var(--state-settled); }
+        .failure { color: var(--state-stale); }
+        details { margin-top: 8px; padding: 8px; border: 1px solid var(--line-soft); border-radius: 6px; }
+        details.picked { border-color: var(--state-settled); }
+        summary { cursor: pointer; font-weight: 550; }
+        .action { border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 4px; }
       `}</style>
-    </aside>
+    </section>
   );
 };
 
@@ -92,6 +86,16 @@ export default function Extend() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const timer = useRef(null);
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    const r = recall();
+    if (typeof r.idea === 'string') setIdea(r.idea);
+    if (Number.isInteger(r.seconds)) setSeconds(r.seconds);
+    if (r.runId) setRunId(r.runId);
+    setRestored(true);
+  }, []);
+  useEffect(() => { if (restored) remember({ idea, seconds, runId }); }, [restored, idea, seconds, runId]);
 
   const start = async () => {
     setError(null);
@@ -131,7 +135,7 @@ export default function Extend() {
     <main className="page">
       <div className="main">
       <h1>Extend</h1>
-      <p className="lede">One story in, a film out. The first shot renders from the plan; every next shot extends the previous take. No one is in the loop.</p>
+      <p className="lede">One story in, a film out. Persona chooses a take, five film specialists independently inspect it and propose improvements, then Persona selects the best receipt. Every stage is logged.</p>
 
       <label className="field">
         <span>The story</span>
@@ -152,6 +156,7 @@ export default function Extend() {
             <span className="id">{runId}</span>
             <span className={`status ${state?.status || 'starting'}`}>{state?.status || 'starting'}{state?.steps ? ` · ${state.steps} steps` : ''}</span>
           </div>
+          {!!state?.steps && <p className="rep"><a href={`/api/extend?runId=${encodeURIComponent(runId)}&journal=1`}>Download run journal</a></p>}
           {state?.refused && <p className="warn">Refused at intake: {state.refused.code} — {state.refused.detail}</p>}
           {state?.failed && <p className="warn">Failed at {state.failed.stage}: {state.failed.detail}</p>}
           {state?.logline && <p className="logline">{state.logline}</p>}
@@ -184,22 +189,23 @@ export default function Extend() {
                       })}
                     </div>
                   )}
+                  <FilmQC qc={sh.filmQC} />
                 </div>
               </li>
             ))}
           </ol>
-          {state?.final && <p className="final">Assembled: {state.final.totalMeasured}s for {state.final.targetSeconds}s · {state.final.pass ? 'within tolerance' : `off by ${state.final.delta}s`}</p>}
+          {state?.final && <p className="final">Assembled: {state.final.totalMeasured}s for {state.final.targetSeconds}s · {state.final.fps} fps. Selected receipts describe proposed improvements; changes have not been applied.</p>}
           {state?.slice && <video className="film" controls src={`/api/extend?runId=${encodeURIComponent(runId)}&file=slice.mp4`} />}
           {state?.report && <p className="rep">Report: <code>runs/{runId}/report.md</code> · journal: <code>runs/{runId}/journal.ndjson</code></p>}
         </section>
       )}
 
       </div>
-      <PersonaPanel />
+      <AgentSidebar />
       <style jsx>{`
         .page { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 32px 28px 80px; color: var(--ink); display: flex; gap: 28px; align-items: flex-start; }
         .main { flex: 1; min-width: 0; max-width: 860px; }
-        @media (max-width: 1080px) { .page { flex-direction: column; padding: 24px 20px 60px; } }
+        @media (max-width: 1080px) { .page { padding: 64px 20px 60px; } }
         h1 { font-size: 22px; font-weight: 550; margin: 0 0 6px; }
         .lede { color: var(--muted); margin: 0 0 20px; line-height: 1.5; }
         .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; color: var(--muted); }

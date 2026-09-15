@@ -287,29 +287,32 @@ export const openJournal = async ({ dir } = {}) => {
 };
 
 const INTENT_PAYLOAD = {
-  reason: ({ images, ...args }) => ({ ...args, images: Array.isArray(images) ? images.length : 0 }),
+  reason: (args) => ({ ...args }),
   generateImage: (args) => ({ ...args }),
   startVideo: (args) => ({ ...args }),
   pollVideo: (args) => ({ ...args }),
 };
 
+const JOURNALED = Symbol('journaledClient');
 export const journaledClient = (journal, client) => {
   if (!journal || typeof journal.intent !== 'function' || typeof journal.result !== 'function') throw new Error('journaledClient needs an open journal');
   if (!client || typeof client !== 'object') throw new Error('journaledClient needs a client');
-  const wrapped = { ...client };
+  if (client[JOURNALED] === journal) return client;
+  const wrapped = { ...client, [JOURNALED]: journal };
   for (const [name, payload] of Object.entries(INTENT_PAYLOAD)) {
     if (typeof client[name] !== 'function') continue;
     wrapped[name] = async (args = {}) => {
       const intentId = await journal.intent(name, payload(args));
+      const context = Object.fromEntries(['agentId', 'stage', 'shotId', 'takeId', 'variant', 'attempt', 'taskId'].filter((key) => args[key] !== undefined).map((key) => [key, args[key]]));
       const t0 = Date.now();
       let out;
       try {
         out = await client[name](args);
       } catch (err) {
-        await journal.result(intentId, { error: { name: err.name, message: err.message }, ms: Date.now() - t0 });
+        await journal.result(intentId, { ...context, error: { name: err.name, message: err.message, status: err.status, details: err.details }, ms: Date.now() - t0 });
         throw err;
       }
-      await journal.result(intentId, { ...out, ms: Date.now() - t0 });
+      await journal.result(intentId, { ...context, ...out, ms: Date.now() - t0 });
       return out;
     };
   }

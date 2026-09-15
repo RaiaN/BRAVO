@@ -31,7 +31,7 @@ const POLL_TIMEOUT_MS = 1800000;
 // ---- Browser client: talks to the app's own Next.js API routes ----------------
 // Used by the canvas (L4). Keeps the existing request shapes unchanged.
 
-export const createBrowserClient = (apiKey) => ({
+export const createBrowserClient = (apiKey, { onEvent } = {}) => ({
   async generateImage({ prompt, referenceImages, size, model, seed, optimizePrompt }) {
     const res = await fetch('/api/film/imagine', {
       method: 'POST',
@@ -43,14 +43,15 @@ export const createBrowserClient = (apiKey) => ({
     return data;
   },
 
-  async reason({ prompt, systemPrompt, images, video, modelId, reasoningEffort }) {
+  async reason({ prompt, systemPrompt, images, video, modelId, reasoningEffort, timeoutMs = 360000 }) {
     const res = await fetch('/api/seed', {
       method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey, modelId, prompt, systemPrompt, images: images || [], video: video || undefined, reasoningEffort }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(errMsg(data, 'Reasoning request failed'));
+    if (!res.ok) throw Object.assign(new Error(errMsg(data, 'Reasoning request failed')), { status: res.status, details: data });
     return data;
   },
 
@@ -86,6 +87,8 @@ export const createBrowserClient = (apiKey) => ({
         ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
       });
       const data = await res.json();
+      if (onEvent) await onEvent('render.poll', { taskId, status: res.status, response: data, ms: Date.now() - startedAt });
+      if (!res.ok) throw Object.assign(new Error(errMsg(data, 'Seedance polling failed')), { status: res.status, details: data });
       if (data.status === 'succeeded' && data.video_url) return { videoUrl: data.video_url, lastFrameUrl: data.last_frame_url || null, videoCacheUrl: data.video_cache_url || null, lastFrameCacheUrl: data.last_frame_cache_url || null };
       if (data.status === 'failed') throw new Error(data.error?.message || data.error || 'Seedance task failed');
     }

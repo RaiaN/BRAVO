@@ -1,6 +1,5 @@
 const path = require('path');
 const fs = require('fs');
-const net = require('net');
 const { createServer } = require('http');
 const { app, BrowserWindow, nativeTheme, shell } = require('electron');
 const next = require('next');
@@ -39,16 +38,6 @@ const loadEnv = () => {
   return null;
 };
 
-const findOpenPort = (startPort) => new Promise((resolve) => {
-  const tryPort = (port) => {
-    const tester = net.createServer()
-      .once('error', () => tryPort(port + 1))
-      .once('listening', () => tester.close(() => resolve(port)))
-      .listen(port, '127.0.0.1');
-  };
-  tryPort(startPort);
-});
-
 let nextServer;
 let httpServer;
 let mainWindow;
@@ -79,7 +68,7 @@ const createMainWindow = async () => {
   });
 
   if (isDev) {
-    await mainWindow.loadURL(process.env.BRAVO_DEV_URL || 'http://localhost:3000');
+    await mainWindow.loadURL(process.env.BRAVO_DEV_URL || 'http://localhost:3004');
     return;
   }
 
@@ -88,13 +77,16 @@ const createMainWindow = async () => {
   try { process.chdir(appDir); } catch { }
 
   process.env.NEXT_DIST_DIR = '.next-build';
-  const port = await findOpenPort(3000);
+  const port = 3004;
   nextServer = next({ dev: false, dir: appDir });
   const handle = nextServer.getRequestHandler();
   await nextServer.prepare();
 
   httpServer = createServer((req, res) => handle(req, res));
-  await new Promise((resolve) => httpServer.listen(port, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => {
+    httpServer.once('error', reject);
+    httpServer.listen(port, '127.0.0.1', resolve);
+  });
 
   await mainWindow.loadURL(`http://127.0.0.1:${port}`);
 };
